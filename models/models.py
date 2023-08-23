@@ -153,13 +153,21 @@ class DeepLabConvBlock(tf.keras.layers.Layer):
 
 
 class DSPP(tf.keras.layers.Layer):
+    _not_build_up_sampling = True
+
+    def _build_up_sampling(self, conv):
+        self.up_sampling = tf.keras.layers.UpSampling2D(
+            size=(
+                self._build_input_shape[-3] // conv.shape[1], self._build_input_shape[-2] // conv.shape[2]),
+            interpolation="bilinear"
+        )
+
+        self._not_build_up_sampling = False
+
     def build(self, input_shape):
         self.av_pooling = tf.keras.layers.AveragePooling2D(pool_size=(input_shape[-3], input_shape[-2]))
         self.start_conv = DeepLabConvBlock(kernel_size=1, use_bias=True)
-        self.up_sampling = tf.keras.layers.UpSampling2D(
-            size=(input_shape[-3] // self.first_conv.output_shape[1], input_shape[-2] // self.first_conv.output_shape[2]),
-            interpolation="bilinear"
-        )
+        self.up_sampling = None  # будет инициализирован когда будет известен output_shape self.start_conv
 
         self.conv_1 = DeepLabConvBlock(kernel_size=1, dilation_rate=1)
         self.conv_6 = DeepLabConvBlock(kernel_size=3, dilation_rate=6)
@@ -174,6 +182,10 @@ class DSPP(tf.keras.layers.Layer):
     def call(self, inputs, *args, **kwargs):
         x = self.av_pooling(inputs)
         x = self.start_conv(x)
+
+        if self._not_build_up_sampling:
+            self._build_up_sampling(x)
+
         out_pool = self.up_sampling(x)
 
         out_1 = self.conv_1(inputs)
@@ -231,7 +243,7 @@ def build_unet(
     model_output = tf.keras.layers.Conv2D(1, (1, 1))(conv_9)
     model_output = tf.keras.layers.Activation('sigmoid')(model_output)
 
-    model = tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='U-Net')
+    model = tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='Unet')
 
     if weights_path:
         if weights_path == "auto_local":
@@ -250,8 +262,8 @@ def build_unet(
 
 
 def build_unet_plus_plus(
-    input_shape: tuple[int, int, int] = (256, 256, 3),
-    weights_path: str = None
+        input_shape: tuple[int, int, int] = (256, 256, 3),
+        weights_path: str = None
 ) -> tf.keras.models.Model:
     """
     Возвращает не скомпилированную модель с архитектурой U-Net++
@@ -291,7 +303,7 @@ def build_unet_plus_plus(
     model_output = tf.keras.layers.Conv2D(1, (1, 1))(conv_0_4)
     model_output = tf.keras.layers.Activation('sigmoid')(model_output)
 
-    model = tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='U-Net++')
+    model = tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='Unet_plus_plus')
 
     if weights_path:
         if weights_path == "auto_local":
@@ -310,8 +322,8 @@ def build_unet_plus_plus(
 
 
 def build_deeplab_v3_plus(
-    input_shape: tuple[int, int, int] = (256, 256, 3),
-    weights_path: str = None
+        input_shape: tuple[int, int, int] = (256, 256, 3),
+        weights_path: str = None
 ) -> tf.keras.models.Model:
     """
     Возвращает не скомпилированную модель с архитектурой DeepLabV3+
@@ -331,7 +343,10 @@ def build_deeplab_v3_plus(
     model_input = tf.keras.layers.Input(input_shape)
 
     resnet50 = tf.keras.applications.ResNet50(
-        weights="imagenet", include_top=False, input_tensor=model_input
+        weights="imagenet",
+        include_top=False,
+        input_tensor=model_input,
+        input_shape=input_shape
     )
 
     x = resnet50.get_layer("conv4_block6_2_relu").output
@@ -356,7 +371,7 @@ def build_deeplab_v3_plus(
     model_output = tf.keras.layers.Conv2D(1, kernel_size=(1, 1), padding="same")(x)
     model_output = tf.keras.layers.Activation('sigmoid')(model_output)
 
-    model = tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='DeepLabV3+')
+    model = tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='DeepLabV3_plus')
 
     if weights_path:
         if weights_path == "auto_local":
@@ -370,14 +385,5 @@ def build_deeplab_v3_plus(
             os.remove(weights_path)
         else:
             model.load_weights(weights_path)
-
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(),
-        loss=tf.keras.losses.BinaryCrossentropy(),
-        metrics=[
-            tf.keras.metrics.BinaryIoU(),
-            tf.keras.metrics.Accuracy()
-        ]
-    )
 
     return model
