@@ -4,6 +4,106 @@ import tensorflow as tf
 from lesa.models.utils import get_local_weights_path, get_remote_weights_path
 
 
+class EncoderBlock:
+    def __init__(
+        self,
+        num_filters,
+        use_pooling=True
+    ):
+
+        self.use_pooling = use_pooling
+
+        self.conv_1 = tf.keras.layers.Conv2D(
+            num_filters,
+            (3, 3),
+            kernel_initializer='he_normal',
+            padding='same',
+            use_bias=False
+        )
+        self.activation_1 = tf.keras.layers.ReLU()
+
+        self.conv_2 = tf.keras.layers.Conv2D(
+            num_filters,
+            (3, 3),
+            kernel_initializer='he_normal',
+            padding='same',
+            use_bias=False
+        )
+        self.activation_2 = tf.keras.layers.ReLU()
+
+        self.batch_norm = tf.keras.layers.BatchNormalization()
+
+        if use_pooling:
+            self.pooling = tf.keras.layers.MaxPooling2D((2, 2))
+            self.dropout = tf.keras.layers.Dropout(0.1)
+
+    def __call__(self, inputs):
+        conv = self.conv_1(inputs)
+        conv = self.activation_1(conv)
+
+        conv = self.conv_2(conv)
+        conv = self.activation_2(conv)
+
+        if self.use_pooling:
+            pool = self.pooling(conv)
+            pool = self.dropout(pool)
+        else:
+            pool = None
+
+        return conv, pool
+
+
+class DecoderBlock:
+    def __init__(self, num_filters, concatenate_with=None):
+        self.concatenate_with = concatenate_with if concatenate_with else []
+
+        self.conv_transpose = tf.keras.layers.Conv2DTranspose(
+            num_filters,
+            (3, 3),
+            padding='same',
+            strides=(2, 2),
+            kernel_initializer='he_normal',
+            use_bias=False
+        )
+        self.weights_concat = tf.keras.layers.Concatenate()
+        self.dropout = tf.keras.layers.Dropout(0.1)
+
+        self.conv_1 = tf.keras.layers.Conv2D(
+            num_filters,
+            (3, 3),
+            kernel_initializer='he_normal',
+            padding='same',
+            use_bias=False
+        )
+        self.activation_1 = tf.keras.layers.ReLU()
+
+        self.conv_2 = tf.keras.layers.Conv2D(
+            num_filters,
+            (3, 3),
+            kernel_initializer='he_normal',
+            padding='same',
+            use_bias=False
+        )
+        self.activation_2 = tf.keras.layers.ReLU()
+
+        self.batch_norm = tf.keras.layers.BatchNormalization()
+
+    def __call__(self, inputs):
+        unfl = self.conv_transpose(inputs)
+        unfl = self.weights_concat([unfl, *self.concatenate_with])
+        unfl = self.dropout(unfl)
+
+        conv = self.conv_1(unfl)
+        conv = self.activation_1(conv)
+
+        conv = self.conv_2(conv)
+        conv = self.activation_2(conv)
+
+        conv = self.batch_norm(conv)
+
+        return conv
+
+
 class UnetEncoderBlock(tf.keras.layers.Layer):
     def __init__(
             self,
@@ -15,7 +115,7 @@ class UnetEncoderBlock(tf.keras.layers.Layer):
         self.num_filters = num_filters
         self.use_pooling = use_pooling
 
-    def build(self, input_shape):
+    # def build(self, input_shape):
         self.conv_1 = tf.keras.layers.Conv2D(
             self.num_filters,
             (3, 3),
@@ -35,12 +135,10 @@ class UnetEncoderBlock(tf.keras.layers.Layer):
         self.activation_2 = tf.keras.layers.ReLU()
 
         self.batch_norm = tf.keras.layers.BatchNormalization()
+        self.pooling = tf.keras.layers.MaxPooling2D((2, 2))
+        self.dropout = tf.keras.layers.Dropout(0.1)
 
-        if self.use_pooling:
-            self.pooling = tf.keras.layers.MaxPooling2D((2, 2))
-            self.dropout = tf.keras.layers.Dropout(0.1)
-
-        super().build(input_shape)
+        # super().build(input_shape)
 
     def call(self, inputs, *args, **kwargs):
         conv = self.conv_1(inputs)
@@ -65,7 +163,7 @@ class UnetDecoderBlock(tf.keras.layers.Layer):
         self.num_filters = num_filters
         self.concatenate_with = concatenate_with if concatenate_with else []
 
-    def build(self, input_shape):
+    # def build(self, input_shape):
         self.conv_transpose = tf.keras.layers.Conv2DTranspose(
             self.num_filters,
             (3, 3),
@@ -97,7 +195,7 @@ class UnetDecoderBlock(tf.keras.layers.Layer):
 
         self.batch_norm = tf.keras.layers.BatchNormalization()
 
-        super().build(input_shape)
+        # super().build(input_shape)
 
     def call(self, inputs, *args, **kwargs):
         unfl = self.conv_transpose(inputs)
@@ -199,18 +297,6 @@ class DSPP(tf.keras.layers.Layer):
         return output
 
 
-"""
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(),
-        loss=tf.keras.losses.BinaryCrossentropy(),
-        metrics=[
-            tf.keras.metrics.BinaryIoU(),
-            tf.keras.metrics.Accuracy()
-        ]
-    )
-"""
-
-
 def build_unet(
         input_shape: tuple[int, int, int] = (256, 256, 3),
         weights_path: str = None
@@ -228,17 +314,17 @@ def build_unet(
     """
     model_input = tf.keras.layers.Input(input_shape)
 
-    conv_1, pool_1 = UnetEncoderBlock(16)(model_input)  # 256x256 -> 128x128
-    conv_2, pool_2 = UnetEncoderBlock(32)(pool_1)  # 128x128 -> 64x64
-    conv_3, pool_3 = UnetEncoderBlock(64)(pool_2)  # 64x64 -> 32x32
-    conv_4, pool_4 = UnetEncoderBlock(128)(pool_3)  # 32x32 -> 16x16
+    conv_1, pool_1 = EncoderBlock(16)(model_input)  # 256x256 -> 128x128
+    conv_2, pool_2 = EncoderBlock(32)(pool_1)  # 128x128 -> 64x64
+    conv_3, pool_3 = EncoderBlock(64)(pool_2)  # 64x64 -> 32x32
+    conv_4, pool_4 = EncoderBlock(128)(pool_3)  # 32x32 -> 16x16
 
-    conv_5, _ = UnetEncoderBlock(256, use_pooling=False)(pool_4)
+    conv_5, _ = EncoderBlock(256, use_pooling=False)(pool_4)
 
-    conv_6 = UnetDecoderBlock(128, concatenate_with=[conv_4])(conv_5)  # 16x16 -> 32x32
-    conv_7 = UnetDecoderBlock(64, concatenate_with=[conv_3])(conv_6)  # 32x32 -> 64x64
-    conv_8 = UnetDecoderBlock(32, concatenate_with=[conv_2])(conv_7)  # 64x64 -> 128x128
-    conv_9 = UnetDecoderBlock(16, concatenate_with=[conv_1])(conv_8)  # 128x128 -> 256x256
+    conv_6 = DecoderBlock(128, concatenate_with=[conv_4])(conv_5)  # 16x16 -> 32x32
+    conv_7 = DecoderBlock(64, concatenate_with=[conv_3])(conv_6)  # 32x32 -> 64x64
+    conv_8 = DecoderBlock(32, concatenate_with=[conv_2])(conv_7)  # 64x64 -> 128x128
+    conv_9 = DecoderBlock(16, concatenate_with=[conv_1])(conv_8)  # 128x128 -> 256x256
 
     model_output = tf.keras.layers.Conv2D(1, (1, 1))(conv_9)
     model_output = tf.keras.layers.Activation('sigmoid')(model_output)
