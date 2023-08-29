@@ -8,7 +8,8 @@ class EncoderBlock:
     def __init__(
         self,
         num_filters,
-        use_pooling=True
+        use_pooling=True,
+        dropout=0.1
     ):
 
         self.use_pooling = use_pooling
@@ -20,6 +21,7 @@ class EncoderBlock:
             padding='same',
             use_bias=False
         )
+        self.batch_norm_1 = tf.keras.layers.BatchNormalization()
         self.activation_1 = tf.keras.layers.ReLU()
 
         self.conv_2 = tf.keras.layers.Conv2D(
@@ -29,19 +31,21 @@ class EncoderBlock:
             padding='same',
             use_bias=False
         )
+        self.batch_norm_2 = tf.keras.layers.BatchNormalization()
         self.activation_2 = tf.keras.layers.ReLU()
-
-        self.batch_norm = tf.keras.layers.BatchNormalization()
 
         if use_pooling:
             self.pooling = tf.keras.layers.MaxPooling2D((2, 2))
-            self.dropout = tf.keras.layers.Dropout(0.1)
+
+        self.dropout = tf.keras.layers.Dropout(dropout)
 
     def __call__(self, inputs):
         conv = self.conv_1(inputs)
+        conv = self.batch_norm_1(conv)
         conv = self.activation_1(conv)
 
         conv = self.conv_2(conv)
+        conv = self.batch_norm_2(conv)
         conv = self.activation_2(conv)
 
         if self.use_pooling:
@@ -54,7 +58,12 @@ class EncoderBlock:
 
 
 class DecoderBlock:
-    def __init__(self, num_filters, concatenate_with=None):
+    def __init__(
+        self,
+        num_filters,
+        concatenate_with=None,
+        dropout=0.1
+    ):
         self.concatenate_with = concatenate_with if concatenate_with else []
 
         self.conv_transpose = tf.keras.layers.Conv2DTranspose(
@@ -66,7 +75,7 @@ class DecoderBlock:
             use_bias=False
         )
         self.weights_concat = tf.keras.layers.Concatenate()
-        self.dropout = tf.keras.layers.Dropout(0.1)
+        self.dropout = tf.keras.layers.Dropout(dropout)
 
         self.conv_1 = tf.keras.layers.Conv2D(
             num_filters,
@@ -75,6 +84,7 @@ class DecoderBlock:
             padding='same',
             use_bias=False
         )
+        self.batch_norm_1 = tf.keras.layers.BatchNormalization()
         self.activation_1 = tf.keras.layers.ReLU()
 
         self.conv_2 = tf.keras.layers.Conv2D(
@@ -84,9 +94,8 @@ class DecoderBlock:
             padding='same',
             use_bias=False
         )
+        self.batch_norm_2 = tf.keras.layers.BatchNormalization()
         self.activation_2 = tf.keras.layers.ReLU()
-
-        self.batch_norm = tf.keras.layers.BatchNormalization()
 
     def __call__(self, inputs):
         unfl = self.conv_transpose(inputs)
@@ -94,12 +103,12 @@ class DecoderBlock:
         unfl = self.dropout(unfl)
 
         conv = self.conv_1(unfl)
+        conv = self.batch_norm_1(conv)
         conv = self.activation_1(conv)
 
         conv = self.conv_2(conv)
+        conv = self.batch_norm_2(conv)
         conv = self.activation_2(conv)
-
-        conv = self.batch_norm(conv)
 
         return conv
 
