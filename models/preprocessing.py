@@ -4,6 +4,8 @@ from io import BytesIO
 import aiohttp
 import numpy as np
 
+import tensorflow as tf
+
 from PIL import Image
 from matplotlib import pyplot as plt
 
@@ -15,39 +17,12 @@ from matplotlib import pyplot as plt
 TILES_SERVER = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
 
 TILE_SIZE = 256
-PADDING_SIZE = 22
+PADDING_SIZE = 10
+DECREASED_PADDING_SIZE = int(PADDING_SIZE * (TILE_SIZE/(TILE_SIZE+PADDING_SIZE*2)))
 
-
-def get_tiles(tiles_cords: list) -> np.ndarray:
-    """
-    Загружает тайлы по координатам в виде массива следуюжего вида: np.ndarray[height, width, 256, 256, 3]
-
-    :param tiles_cords: координаты тайлов в виде списка словарей вида: {'x': x, 'y': y, 'z': z}
-    """
-    xx = [i['x'] for i in tiles_cords]
-    yy = [i['y'] for i in tiles_cords]
-
-    width = max(xx) - min(xx) + 1
-    height = max(yy) - min(yy) + 1
-
-    _tiles = {}
-
-    async def _http_worker(cords, session, index):
-        # try
-        async with session.get(url=TILES_SERVER.format(**cords)) as response:
-            _tiles[index] = np.asarray(Image.open(BytesIO(await response.read())), dtype=np.uint8)
-
-    async def main():
-        async with aiohttp.ClientSession() as session:
-            await asyncio.gather(
-                *[_http_worker(cords, session, i) for i, cords in enumerate(tiles_cords)]
-            )
-
-    asyncio.run(main())
-
-    _tiles = sorted(_tiles.items())
-
-    return np.array([i[1] for i in _tiles]).reshape((height, width, TILE_SIZE, TILE_SIZE, 3))
+resize = tf.keras.layers.Resizing(TILE_SIZE, TILE_SIZE)
+rescale = tf.keras.layers.Rescaling(1. / 255.)
+crop = tf.keras.layers.CenterCrop(TILE_SIZE-DECREASED_PADDING_SIZE*2, TILE_SIZE-DECREASED_PADDING_SIZE*2)
 
 
 def preprocess_tiles(tiles_cords: list) -> np.ndarray:
@@ -87,16 +62,11 @@ def preprocess_tiles(tiles_cords: list) -> np.ndarray:
 
     tiles = []
 
-    for y in np.arange(PADDING_SIZE, height*TILE_SIZE+PADDING_SIZE, TILE_SIZE):
-        for x in np.arange(PADDING_SIZE, width*TILE_SIZE+PADDING_SIZE, TILE_SIZE):
-            x_0 = x - PADDING_SIZE
-            y_0 = y - PADDING_SIZE
-            x_1 = x + PADDING_SIZE + TILE_SIZE
-            y_1 = y + PADDING_SIZE + TILE_SIZE
+    for y in np.arange(0, height*TILE_SIZE, TILE_SIZE):
+        for x in np.arange(0, width*TILE_SIZE, TILE_SIZE):
+            tiles.append(empty_map[y:y + PADDING_SIZE*2 + TILE_SIZE, x:x + PADDING_SIZE*2 + TILE_SIZE])
 
-            tiles.append(empty_map[y_0:y_1, x_0:x_1])
-
-    return np.array(tiles).reshape((1, len(tiles), TILE_SIZE+PADDING_SIZE*2, TILE_SIZE+PADDING_SIZE*2, 3)) / 255
+    return np.array([resize(rescale(i)) for i in tiles])
 
 
 def postprocess(out_batch: list):
@@ -118,17 +88,5 @@ def postprocess(out_batch: list):
     return result
 
 
-if __name__ == "__main__":
-    data = preprocess_tiles([
-        {'x': 39970, 'y': 23004, 'z': 16},
-        {'x': 39971, 'y': 23004, 'z': 16},
-        {'x': 39970, 'y': 23005, 'z': 16},
-        {'x': 39971, 'y': 23005, 'z': 16},
-        {'x': 39970, 'y': 23006, 'z': 16},
-        {'x': 39971, 'y': 23006, 'z': 16}
-    ])[0]
-
-    for t in range(6):
-        plt.subplot(321+t).imshow(data[t])
-
-    plt.show()
+def postprocess_tiles(model_out: tf.Tensor) -> np.ndarray:
+    return np.asarray([resize(crop(i)) for i in model_out])
