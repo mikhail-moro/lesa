@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 import tensorflow as tf
 from lesa.models.utils import get_local_weights_path, get_remote_weights_path
@@ -259,13 +260,78 @@ class DeepLabConvBlock(tf.keras.layers.Layer):
         return conv
 
 
+class DoubleDeepLabConvBlock(tf.keras.layers.Layer):
+    def __init__(
+            self,
+            num_filters=128,
+            kernel_size=3,
+            dilation_rate=1,
+            use_bias=False,
+            dropout=0.1
+    ):
+        super().__init__()
+
+        self.num_filters = num_filters
+        self.kernel_size = kernel_size
+        self.dilation_rate = dilation_rate
+        self.use_bias = use_bias
+        self.dropout_value = dropout
+
+    def build(self, input_shape):
+        self.conv_1 = tf.keras.layers.Conv2D(
+            self.num_filters,
+            kernel_size=self.kernel_size,
+            dilation_rate=self.dilation_rate,
+            use_bias=self.use_bias,
+            padding='same',
+            kernel_initializer=tf.keras.initializers.HeNormal(),
+        )
+        self.batch_norm_1 = tf.keras.layers.BatchNormalization()
+        self.activation_1 = tf.keras.layers.ReLU()
+
+        self.conv_2 = tf.keras.layers.Conv2D(
+            self.num_filters,
+            kernel_size=self.kernel_size,
+            dilation_rate=self.dilation_rate,
+            use_bias=self.use_bias,
+            padding='same',
+            kernel_initializer=tf.keras.initializers.HeNormal(),
+        )
+        self.batch_norm_2 = tf.keras.layers.BatchNormalization()
+        self.activation_2 = tf.keras.layers.ReLU()
+
+        self.dropout = tf.keras.layers.Dropout(self.dropout_value)
+
+        super().build(input_shape)
+
+    def call(self, inputs, *args, **kwargs):
+        conv = self.conv_1(inputs)
+        conv = self.batch_norm_1(conv)
+        conv = self.activation_1(conv)
+
+        conv = self.conv_2(conv)
+        conv = self.batch_norm_2(conv)
+        conv = self.activation_2(conv)
+
+        conv = self.dropout(conv)
+
+        return conv
+
+
 class DSPP(tf.keras.layers.Layer):
     _not_build_up_sampling = True
 
+    def __init__(self, mode: str = 'original', **kwargs):
+        super().__init__(**kwargs)
+
+        if mode == "double":
+            self.conv_block = DoubleDeepLabConvBlock
+        else:
+            self.conv_block = DeepLabConvBlock
+
     def _build_up_sampling(self, conv):
         self.up_sampling = tf.keras.layers.UpSampling2D(
-            size=(
-                self._build_input_shape[-3] // conv.shape[1], self._build_input_shape[-2] // conv.shape[2]),
+            size=(self._build_input_shape[-3] // conv.shape[1], self._build_input_shape[-2] // conv.shape[2]),
             interpolation="bilinear"
         )
 
@@ -273,16 +339,16 @@ class DSPP(tf.keras.layers.Layer):
 
     def build(self, input_shape):
         self.av_pooling = tf.keras.layers.AveragePooling2D(pool_size=(input_shape[-3], input_shape[-2]))
-        self.start_conv = DeepLabConvBlock(kernel_size=1, use_bias=True)
+        self.start_conv = self.conv_block(kernel_size=1, use_bias=True)
         self.up_sampling = None  # будет инициализирован когда будет известен output_shape self.start_conv
 
-        self.conv_1 = DeepLabConvBlock(kernel_size=1, dilation_rate=1)
-        self.conv_6 = DeepLabConvBlock(kernel_size=3, dilation_rate=6)
-        self.conv_12 = DeepLabConvBlock(kernel_size=3, dilation_rate=12)
-        self.conv_18 = DeepLabConvBlock(kernel_size=3, dilation_rate=18)
+        self.conv_1 = self.conv_block(kernel_size=1, dilation_rate=1)
+        self.conv_6 = self.conv_block(kernel_size=3, dilation_rate=6)
+        self.conv_12 = self.conv_block(kernel_size=3, dilation_rate=12)
+        self.conv_18 = self.conv_block(kernel_size=3, dilation_rate=18)
 
         self.weights_concat = tf.keras.layers.Concatenate(axis=-1)
-        self.final_conv = DeepLabConvBlock(kernel_size=1)
+        self.final_conv = self.conv_block(kernel_size=1)
 
         super().build(input_shape)
 
@@ -418,7 +484,8 @@ def build_unet_plus_plus(
 
 def build_deeplab_v3_plus(
         input_shape: tuple[int, int, int] = (256, 256, 3),
-        weights_path: str = None
+        weights_path: str = None,
+        mode: str = 'original'
 ) -> tf.keras.models.Model:
     """
     Возвращает не скомпилированную модель с архитектурой DeepLabV3+
@@ -434,7 +501,13 @@ def build_deeplab_v3_plus(
 
     :param input_shape: размер входного изображения
     :param weights_path: путь к сохраненным весам модели
+    :param mode: -
     """
+    if mode == 'double':
+        conv_block = DoubleDeepLabConvBlock
+    else:
+        conv_block = DeepLabConvBlock
+
     model_input = tf.keras.layers.Input(input_shape)
 
     resnet50 = tf.keras.applications.ResNet50(
@@ -445,7 +518,7 @@ def build_deeplab_v3_plus(
     )
 
     x = resnet50.get_layer("conv4_block6_2_relu").output
-    x = DSPP()(x)
+    x = DSPP(mode=mode)(x)
 
     input_a = tf.keras.layers.UpSampling2D(
         size=(input_shape[0] // 4 // x.shape[1], input_shape[1] // 4 // x.shape[2]),
@@ -453,11 +526,11 @@ def build_deeplab_v3_plus(
     )(x)
 
     input_b = resnet50.get_layer("conv2_block3_2_relu").output
-    input_b = DeepLabConvBlock(num_filters=48, kernel_size=1)(input_b)
+    input_b = conv_block(num_filters=128, kernel_size=1)(input_b)
 
     x = tf.keras.layers.Concatenate(axis=-1)([input_a, input_b])
-    x = DeepLabConvBlock()(x)
-    x = DeepLabConvBlock()(x)
+    x = conv_block()(x)
+    x = conv_block()(x)
     x = tf.keras.layers.UpSampling2D(
         size=(input_shape[0] // x.shape[1], input_shape[1] // x.shape[2]),
         interpolation="bilinear"
