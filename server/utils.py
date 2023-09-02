@@ -1,23 +1,25 @@
 import asyncio
-from io import BytesIO
-
+import PIL
 import aiohttp
+import matplotlib.pyplot as plt
 import numpy as np
-
 import tensorflow as tf
+import sqlite3
 
 from PIL import Image
-from matplotlib import pyplot as plt
+from io import BytesIO
+
 
 #
 # За быстрейшие параллельные запросы спасибо пользователю Pedro Serra
 # https://stackoverflow.com/questions/57126286/fastest-parallel-requests-in-python
 #
 
+
 TILES_SERVER = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
 
 TILE_SIZE = 256
-PADDING_SIZE = 10
+PADDING_SIZE = 16
 DECREASED_PADDING_SIZE = int(PADDING_SIZE * (TILE_SIZE/(TILE_SIZE+PADDING_SIZE*2)))
 
 resize = tf.keras.layers.Resizing(TILE_SIZE, TILE_SIZE)
@@ -69,24 +71,54 @@ def preprocess_tiles(tiles_cords: list) -> np.ndarray:
     return np.array([resize(rescale(i)) for i in tiles])
 
 
-def postprocess(out_batch: list):
-    result = []
+def postprocess_tiles(out_batch: tf.Tensor):
+    # переводим матрицу полученную с помощью модели в a-канал .png изображения
+    tiles_queue = {}
 
-    for mask in out_batch:
-        im_arr = []
+    async def _process_worker(raw_tile, index):
+        result = np.zeros(shape=(256, 256, 4), dtype=np.uint8)
+        result[:, :, 3] = raw_tile.reshape(256, 256) * 255
 
-        for x in mask:
-            xx = []
+        tiles_queue[index] = Image.fromarray(result, 'RGBA')
 
-            for y in x:
-                xx.append([0, 0, 0, y*255])
+    async def main():
+        await asyncio.gather(
+            *[_process_worker(model_out, i) for i, model_out in enumerate(out_batch)]
+        )
 
-            im_arr.append(xx)
+    asyncio.run(main())
 
-        result.append(Image.fromarray(np.asarray(im_arr, dtype=np.uint8), 'RGBA'))
+    tiles_queue = sorted(tiles_queue.items())
 
-    return result
+    return [i[1] for i in tiles_queue]
 
 
-def postprocess_tiles(model_out: tf.Tensor) -> np.ndarray:
-    return np.asarray([resize(crop(i)) for i in model_out])
+class TilesStorage:
+    _connection = None
+    _cursor = None
+
+    def __init__(self):
+        self._connection = sqlite3.Connection("tiles_database.db")
+        self._cursor = self._connection.cursor()
+
+        self._cursor.execute(
+            """
+                CREATE TABLE IF NOT EXISTS tiles (
+                    x INTEGER, y INTEGER, z INTEGER, tile BLOB NOT NULL, PRIMARY KEY(z, y, z)
+                );
+            """
+        )
+        self._connection.commit()
+
+    def append_tile(self, x: int, y: int, z: int, tile: PIL.Image.Image):
+        file_stream = BytesIO()
+        tile.save(file_stream, format='PNG')
+
+        self._cursor.execute(
+            "INSERT INTO tiles (x, y, z, tile) VALUES (?, ?, ?, ?)",
+            (x, y, z, file_stream.getvalue())
+        )
+        self._connection.commit()
+
+    def __del__(self):
+        self._connection.close()

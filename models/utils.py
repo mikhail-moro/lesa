@@ -12,12 +12,12 @@ from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 from googleapiclient.discovery import build
 
 
-WEIGHTS_DIR = "weights"
-TMP_WEIGHTS_DIR = "tmp"
+WEIGHTS_DIR = os.path.join("weights")
+TMP_WEIGHTS_DIR = os.path.join("tmp")
 REMOTE_WEIGHTS_DIR_ID = "12yzyc54hrUGNYQLBVfejX38OdQBSnQLk"
 
 SCOPES = ['https://www.googleapis.com/auth/drive']
-CREDITS_FILE = "addition_data/google-api-credits.json"
+CREDITS_FILE = os.path.join("addition_data", "google-api-credits.json")
 
 
 class PlotLossesCallback(tf.keras.callbacks.Callback):
@@ -59,7 +59,7 @@ def save_weights_remote(model: tf.keras.models.Model) -> None:
         os.mkdir(TMP_WEIGHTS_DIR)
 
     name = f"weights {model.name} {dt.datetime.now()}.h5"
-    temp_weights_path = os.path.join(TMP_WEIGHTS_DIR, f"{time.time()}.h5")
+    temp_weights_path = os.path.join(TMP_WEIGHTS_DIR, f"{int(time.time())}.h5")
 
     model.save_weights(temp_weights_path)
 
@@ -75,9 +75,7 @@ def save_weights_remote(model: tf.keras.models.Model) -> None:
     }
 
     media = MediaFileUpload(temp_weights_path, resumable=True)
-    service.files().create(body=file_metadata, media_body=media, fields='if').execute()
-
-    os.remove(temp_weights_path)
+    service.files().create(body=file_metadata, media_body=media, fields='id').execute()
 
 
 def get_local_weights_path(model_name: str) -> str | None:
@@ -89,7 +87,9 @@ def get_local_weights_path(model_name: str) -> str | None:
 
     try:
         return os.path.join(WEIGHTS_DIR, names[np.argmax([_get_date_from_name(i) for i in names])])
-    except:
+    except Exception as ex:
+        print(ex)
+
         return None
 
 
@@ -111,15 +111,15 @@ def get_remote_weights_path(model_name: str):
     file = service.files().list(
         pageSize=999,
         fields="files(id, name)",
-        q=f"'{model_name}' in name",
-        order_by="createdTime desc"
+        q=f"name contains '{model_name}'",
+        orderBy="createdTime desc"
     ).execute()["files"]
 
     if len(file) == 0:
         return None
     else:
         try:
-            weights_file_name = f"{time.time()}.h5"
+            weights_file_name = f"{int(time.time())}.h5"
 
             request = service.files().get_media(fileId=file[0]['id'])
             stream = io.FileIO(os.path.join(TMP_WEIGHTS_DIR, weights_file_name), 'wb')
@@ -130,5 +130,7 @@ def get_remote_weights_path(model_name: str):
                 status, done = downloader.next_chunk()
 
             return os.path.join(TMP_WEIGHTS_DIR, weights_file_name)
-        except:
+        except Exception as ex:
+            print(ex)
+
             return None
