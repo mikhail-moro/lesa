@@ -1,7 +1,7 @@
 import os
-from typing import Optional
 
 import tensorflow as tf
+
 from lesa.models.utils import get_local_weights_path, get_remote_weights_path
 
 
@@ -110,115 +110,6 @@ class DecoderBlock:
         conv = self.conv_2(conv)
         conv = self.batch_norm_2(conv)
         conv = self.activation_2(conv)
-
-        return conv
-
-
-class UnetEncoderBlock(tf.keras.layers.Layer):
-    def __init__(
-            self,
-            num_filters,
-            use_pooling=True
-    ):
-        super().__init__()
-
-        self.num_filters = num_filters
-        self.use_pooling = use_pooling
-
-    # def build(self, input_shape):
-        self.conv_1 = tf.keras.layers.Conv2D(
-            self.num_filters,
-            (3, 3),
-            kernel_initializer='he_normal',
-            padding='same',
-            use_bias=False
-        )
-        self.activation_1 = tf.keras.layers.ReLU()
-
-        self.conv_2 = tf.keras.layers.Conv2D(
-            self.num_filters,
-            (3, 3),
-            kernel_initializer='he_normal',
-            padding='same',
-            use_bias=False
-        )
-        self.activation_2 = tf.keras.layers.ReLU()
-
-        self.batch_norm = tf.keras.layers.BatchNormalization()
-        self.pooling = tf.keras.layers.MaxPooling2D((2, 2))
-        self.dropout = tf.keras.layers.Dropout(0.1)
-
-        # super().build(input_shape)
-
-    def call(self, inputs, *args, **kwargs):
-        conv = self.conv_1(inputs)
-        conv = self.activation_1(conv)
-
-        conv = self.conv_2(conv)
-        conv = self.activation_2(conv)
-
-        if self.use_pooling:
-            pool = self.pooling(conv)
-            pool = self.dropout(pool)
-        else:
-            pool = None
-
-        return conv, pool
-
-
-class UnetDecoderBlock(tf.keras.layers.Layer):
-    def __init__(self, num_filters, concatenate_with=None):
-        super().__init__()
-
-        self.num_filters = num_filters
-        self.concatenate_with = concatenate_with if concatenate_with else []
-
-    # def build(self, input_shape):
-        self.conv_transpose = tf.keras.layers.Conv2DTranspose(
-            self.num_filters,
-            (3, 3),
-            padding='same',
-            strides=(2, 2),
-            kernel_initializer='he_normal',
-            use_bias=False
-        )
-        self.weights_concat = tf.keras.layers.Concatenate()
-        self.dropout = tf.keras.layers.Dropout(0.1)
-
-        self.conv_1 = tf.keras.layers.Conv2D(
-            self.num_filters,
-            (3, 3),
-            kernel_initializer='he_normal',
-            padding='same',
-            use_bias=False
-        )
-        self.activation_1 = tf.keras.layers.ReLU()
-
-        self.conv_2 = tf.keras.layers.Conv2D(
-            self.num_filters,
-            (3, 3),
-            kernel_initializer='he_normal',
-            padding='same',
-            use_bias=False
-        )
-        self.activation_2 = tf.keras.layers.ReLU()
-
-        self.batch_norm = tf.keras.layers.BatchNormalization()
-
-        # super().build(input_shape)
-
-    def call(self, inputs, *args, **kwargs):
-        unfl = self.conv_transpose(inputs)
-        unfl = self.weights_concat([unfl, *self.concatenate_with])
-        unfl = self.dropout(unfl)
-
-        conv = self.conv_1(unfl)
-        conv = self.activation_1(conv)
-
-        conv = self.conv_2(conv)
-        conv = self.activation_2(conv)
-
-        conv = self.batch_norm(conv)
 
         return conv
 
