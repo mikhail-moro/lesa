@@ -5,7 +5,6 @@ from lesa.server.tile_processing import preprocess_tiles, postprocess_tiles, loa
 
 
 app = Flask(__name__)
-model = None
 
 
 @app.route('/')
@@ -33,17 +32,14 @@ def analyze():
 
         return jsonify(json)
     except Exception as ex:
-        print(ex.with_traceback(None))
+        print(ex)
 
         return 'Not Found', 404
 
 
-def run_server():
-    app.run(port=80)
+def run_server(port: int, availible_models: list[str]):
+    global models
 
 
-if __name__ == "__main__":
-    model = tensorflow.keras.models.load_model("../../tests/lesa_model_best.h5")
-    # tile_manager = TilesManager()
 
-    run_server()
+    app.run(port=port)

@@ -3,10 +3,9 @@ import asyncio
 import aiohttp
 
 import numpy as np
-import shapely
 import tensorflow as tf
 
-from shapely import Polygon
+from shapely import Polygon, MultiPolygon
 from PIL import Image
 from io import BytesIO
 from skimage import restoration, measure
@@ -150,7 +149,7 @@ def postprocess_tiles(
             # возьмём их пересечение
             polygon = analyze_area_polygon & polygon
 
-            if isinstance(polygon, shapely.Polygon):
+            if isinstance(polygon, Polygon):
                 polygon_area = polygon.area
 
                 polygon = _pix_coords_to_latlngs(

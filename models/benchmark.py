@@ -110,7 +110,11 @@ class Benchmark:
 
             images_batch = rescaling([_load_image(p) for p in images_paths])
             masks_batch = rescaling([_load_image(p, mask=True) for p in masks_paths])
-            predicted_masks_batch = test_model.predict(images_batch, verbose=None)
+
+            predicted_masks_batch = test_model.predict(
+                images_batch,
+                verbose=None
+            )
 
             if self.save_for_visualising:
                 if not self._images_data_init:
