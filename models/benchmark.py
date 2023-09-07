@@ -35,7 +35,7 @@ models_archs = [
 IMAGES_PATH = os.path.join("benchmark_data", "tiles")
 MASKS_PATH = os.path.join("benchmark_data", "masks")
 
-layers = ["layer_16", "layer_17", "layer_18"]
+layers = ["zoom_16", "zoom_17", "zoom_18"]
 rescaling = tensorflow.keras.layers.Rescaling(1. / 255.)
 
 
@@ -82,20 +82,20 @@ class Benchmark:
         Возвращает результаты тестов по каждой метрике в виде словаря следующего вида:
 
         {
-            "layer_16_metric1": float,
+            "zoom_16_metric1": float,
 
-            "layer_17_metric1": float,
+            "zoom_17_metric1": float,
 
-            "layer_18_metric1": float,
+            "zoom_18_metric1": float,
 
             "mean_metric1": float,
 
-            "layer_16_metric2": float,
+            "zoom_16_metric2": float,
 
             ...
         }
 
-        *layer_16, layer_17, layer_18 - разные масштабы, mean - среднее для всех масштабов*
+        *zoom_16, zoom_17, zoom_18 - разные масштабы, mean - среднее для всех масштабов*
 
         :param test_model: тестируемая модель
         """
@@ -104,9 +104,9 @@ class Benchmark:
         for metric in self.metrics:
             result[f"mean_{metric.name}"] = 0.
 
-        for layer in layers:
-            images_paths = [os.path.join(self.images_paths, layer, img) for img in os.listdir(os.path.join(self.images_paths, layer))]
-            masks_paths = [os.path.join(self.masks_paths, layer, msk) for msk in os.listdir(os.path.join(self.masks_paths, layer))]
+        for zoom in layers:
+            images_paths = [os.path.join(self.images_paths, zoom, img) for img in os.listdir(os.path.join(self.images_paths, zoom))]
+            masks_paths = [os.path.join(self.masks_paths, zoom, msk) for msk in os.listdir(os.path.join(self.masks_paths, zoom))]
 
             images_batch = rescaling([_load_image(p) for p in images_paths])
             masks_batch = rescaling([_load_image(p, mask=True) for p in masks_paths])
@@ -129,7 +129,7 @@ class Benchmark:
 
                 layer_value = metric.result()
 
-                result[f"{layer}_{metric.name}"] = layer_value.numpy()
+                result[f"{zoom}_{metric.name}"] = layer_value.numpy()
                 result[f"mean_{metric.name}"] += layer_value.numpy()
 
         for metric in self.metrics:
@@ -168,14 +168,14 @@ if __name__ == "__main__":
     arch = str(args.model_arch).lower()
     weights_path = args.weights_path
 
-    # TODO добавить проверки аргументов
+    # добавить проверки аргументов
 
     benchmark = Benchmark()
 
     if arch in unet_archs:
         from lesa.models.models import build_unet
 
-        # TODO try
+        # try
         print(benchmark.compute(build_unet(weights_path=weights_path)))
     elif arch in unet_plus_plus_archs:
         from lesa.models.models import build_unet_plus_plus
@@ -186,4 +186,4 @@ if __name__ == "__main__":
 
         print(benchmark.compute(build_deeplab_v3_plus(weights_path=weights_path)))
     else:
-        raise ValueError()  # TODO
+        raise ValueError()  #

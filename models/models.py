@@ -271,7 +271,7 @@ def build_unet(
     Возвращает не скомпилированную модель с архитектурой U-Net
 
     Можно написать путь к весам в ручную или использовать ключевые слова:
-        - 'auto_local' - автоматически найти путь к последним локально сохраненным весам,
+        - 'auto_local' - автоматически найти путь к последним локально сохраненным весам (пока не работает),
         - 'auto_remote' - автоматически найти путь к последним удаленно сохраненным весам,
         - None - создать пустую модель (для обучения с нуля)
 
@@ -321,7 +321,7 @@ def build_unet_plus_plus(
     Возвращает не скомпилированную модель с архитектурой U-Net++
 
     Можно написать путь к весам в ручную или использовать ключевые слова:
-        - 'auto_local' - автоматически найти путь к последним локально сохраненным весам,
+        - 'auto_local' - автоматически найти путь к последним локально сохраненным весам (пока не работает),
         - 'auto_remote' - автоматически найти путь к последним удаленно сохраненным весам,
         - None - создать пустую модель (для обучения с нуля)
 
@@ -330,27 +330,26 @@ def build_unet_plus_plus(
     """
     model_input = tf.keras.layers.Input(input_shape)
 
-    conv_0_0, pool_1 = UnetEncoderBlock(16)(model_input)  # 256x256 -> 128x128
+    conv_0_0, pool_1 = EncoderBlock(16)(model_input)  # 256x256 -> 128x128
 
-    conv_1_0, pool_2 = UnetEncoderBlock(32)(pool_1)  # 128x128 -> 64x64
-    conv_0_1 = UnetDecoderBlock(16, concatenate_with=[conv_0_0])(conv_1_0)
+    conv_1_0, pool_2 = EncoderBlock(32)(pool_1)  # 128x128 -> 64x64
+    conv_0_1 = DecoderBlock(16, concatenate_with=[conv_0_0])(conv_1_0)
 
-    conv_2_0, pool_3 = UnetEncoderBlock(64)(pool_2)  # 64x64 -> 32x32
-    conv_1_1 = UnetDecoderBlock(32, concatenate_with=[conv_1_0])(conv_2_0)
-    conv_0_2 = UnetDecoderBlock(16, concatenate_with=[conv_0_0, conv_0_1])(conv_1_1)
+    conv_2_0, pool_3 = EncoderBlock(64)(pool_2)  # 64x64 -> 32x32
+    conv_1_1 = DecoderBlock(32, concatenate_with=[conv_1_0])(conv_2_0)
+    conv_0_2 = DecoderBlock(16, concatenate_with=[conv_0_0, conv_0_1])(conv_1_1)
 
-    conv_3_0, pool_4 = UnetEncoderBlock(128)(pool_3)  # 32x32 -> 16x16
-    conv_2_1 = UnetDecoderBlock(64, concatenate_with=[conv_2_0])(conv_3_0)
-    conv_1_2 = UnetDecoderBlock(32, concatenate_with=[conv_1_0, conv_1_1])(conv_2_1)
-    conv_0_3 = UnetDecoderBlock(16, concatenate_with=[conv_0_0, conv_0_1, conv_0_2])(conv_1_2)
+    conv_3_0, pool_4 = EncoderBlock(128)(pool_3)  # 32x32 -> 16x16
+    conv_2_1 = DecoderBlock(64, concatenate_with=[conv_2_0])(conv_3_0)
+    conv_1_2 = DecoderBlock(32, concatenate_with=[conv_1_0, conv_1_1])(conv_2_1)
+    conv_0_3 = DecoderBlock(16, concatenate_with=[conv_0_0, conv_0_1, conv_0_2])(conv_1_2)
 
-    conv_4_0, _ = UnetEncoderBlock(256, use_pooling=False)(pool_4)
+    conv_4_0, _ = EncoderBlock(256, use_pooling=False)(pool_4)
 
-    conv_3_1 = UnetDecoderBlock(128, concatenate_with=[conv_3_0])(conv_4_0)  # 16x16 -> 32x32
-    conv_2_2 = UnetDecoderBlock(64, concatenate_with=[conv_2_0, conv_2_1])(conv_3_1)  # 32x32 -> 64x64
-    conv_1_3 = UnetDecoderBlock(32, concatenate_with=[conv_1_0, conv_1_1, conv_1_2])(conv_2_2)  # 64x64 -> 128x128
-    conv_0_4 = UnetDecoderBlock(16, concatenate_with=[conv_0_0, conv_0_1, conv_0_2, conv_0_3])(
-        conv_1_3)  # 128x128 -> 256x256
+    conv_3_1 = DecoderBlock(128, concatenate_with=[conv_3_0])(conv_4_0)  # 16x16 -> 32x32
+    conv_2_2 = DecoderBlock(64, concatenate_with=[conv_2_0, conv_2_1])(conv_3_1)  # 32x32 -> 64x64
+    conv_1_3 = DecoderBlock(32, concatenate_with=[conv_1_0, conv_1_1, conv_1_2])(conv_2_2)  # 64x64 -> 128x128
+    conv_0_4 = DecoderBlock(16, concatenate_with=[conv_0_0, conv_0_1, conv_0_2, conv_0_3])(conv_1_3)  # 128x128 -> 256x256
 
     model_output = tf.keras.layers.Conv2D(1, (1, 1))(conv_0_4)
     model_output = tf.keras.layers.Activation('sigmoid')(model_output)
@@ -386,7 +385,7 @@ def build_deeplab_v3_plus(
     https://github.com/keras-team/keras-io/blob/master/examples/vision/ipynb/deeplabv3_plus.ipynb
 
     Можно написать путь к весам в ручную или использовать ключевые слова:
-        - 'auto_local' - автоматически найти путь к последним локально сохраненным весам,
+        - 'auto_local' - автоматически найти путь к последним локально сохраненным весам (пока не работает),
         - 'auto_remote' - автоматически найти путь к последним удаленно сохраненным весам,
         - None - создать пустую модель (для обучения с нуля)
 

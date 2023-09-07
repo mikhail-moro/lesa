@@ -82,6 +82,8 @@ def get_local_weights_path(model_name: str) -> str | None:
     """
     Возвращает путь с самым последним локально сохраненным файлом весов для данной модели, None - если сохраненных весов
     нет
+
+    *пока не работает*
     """
     names = [i for i in os.listdir(WEIGHTS_DIR) if model_name in i]
 

@@ -1,17 +1,11 @@
-import os.path
 import tensorflow
 
-from flask import Flask, render_template, request, send_file
-from lesa.server.utils import preprocess_tiles, postprocess_tiles
-
-
-TILES_DIR = os.path.join("static", "tile")
+from flask import Flask, render_template, request, send_file, jsonify
+from lesa.server.tile_processing import preprocess_tiles, postprocess_tiles, load_tiles
 
 
 app = Flask(__name__)
-
 model = None
-tile_manager = None
 
 
 @app.route('/')
@@ -19,31 +13,27 @@ def main():
     return render_template('index.html')
 
 
-@app.route('/tile', methods=['GET'])
-def get_tile():
-    file_name = f"static/tile/{request.args['z']}_{request.args['y']}_{request.args['x']}.png"
-
-    if os.path.exists(file_name):
-        return send_file(file_name, mimetype='image/png')
-    else:
-        return send_file("static/empty_tile.png", mimetype='image/png')
-
-
 @app.route('/analyze', methods=['POST'])
 def analyze():
     data = request.get_json()
 
     try:
-        tiles = preprocess_tiles(data['tiles_coords'])
-        raw_masks = model.predict(tiles)
-        pngs = postprocess_tiles(raw_masks)
+        tiles, width, height = load_tiles(data["tiles_coords"])
 
-        for k, v in zip(data['tiles_coords'], pngs):
-            v.save(os.path.join('static', 'tile', f"{k['z']}_{k['y']}_{k['x']}.png"))
+        input_batch = preprocess_tiles(tiles, width, height)
+        out_batch = model.predict(input_batch)
 
-        return 'Ok', 200
+        json = postprocess_tiles(
+            out_batch=out_batch,
+            width=width,
+            height=height,
+            start_tile_coords=data["tiles_coords"][0],
+            analyze_area_polygon_dots=data["analyze_area_polygon"]
+        )
+
+        return jsonify(json)
     except Exception as ex:
-        print(ex)
+        print(ex.with_traceback(None))
 
         return 'Not Found', 404
 
