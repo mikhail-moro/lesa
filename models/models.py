@@ -1,8 +1,70 @@
+import abc
 import os
 
 import tensorflow as tf
 
-from lesa.models.utils import get_local_weights_path, get_remote_weights_path
+from abc import ABC
+from typing import Literal
+from .utils import get_local_weights_path, get_remote_weights_path
+
+
+class Analyzer(ABC):
+    """
+    Можно написать название файла с весами вручную или использовать ключевые значения:
+        - 'auto' - автоматически найти путь к последним локально сохраненным весам (если задан аргумент weights_dir или weights_destination = 'remote'),
+        - None - создать пустую модель (для обучения с нуля)
+
+    :param input_shape: размер входного изображения
+    :param weights_file: название файла с весами
+    :param weights_dir: путь/id к директории с сохраненными весами модели
+    :param weights_destination: расположение директории с весами: 'local' - использовать веса из локальной директории, 'remote' - использовать веса из удаленной Google Drive директории
+    """
+    model: tf.keras.models.Model = None
+
+    @abc.abstractmethod
+    def build_model(self, input_shape):
+        raise NotImplementedError()
+
+    @staticmethod
+    def inherit_doc(target):
+        if target.__doc__:
+            target.__doc__ = Analyzer.__doc__ + target.__doc__
+        else:
+            target.__doc__ = Analyzer.__doc__
+
+        return target
+
+    def __init__(
+        self,
+        input_shape: tuple[int, int, int] = (256, 256, 3),
+        weights_file: str = None,
+        weights_dir: str = None,
+        weights_destination: Literal['local', 'remote'] = 'local'
+    ):
+        self.model = self.build_model(input_shape)
+
+        if all((weights_file, weights_dir, weights_destination)) is not None:
+            if weights_file == "auto":
+                if weights_destination == "local":
+                    weights_path = get_local_weights_path(self.model.name, weights_dir)
+
+                    self.model.load_weights(weights_path)
+
+                if weights_destination == "remote":
+                    weights_path = get_remote_weights_path(self.model.name)
+
+                    self.model.load_weights(weights_path)
+                    os.remove(weights_path)
+            else:
+                self.model.load_weights(os.path.join(weights_dir, weights_file))
+
+    def __call__(self, input_tensor: tf.Tensor):
+        print("call")
+        return self.model.predict(input_tensor, verbose=None)
+
+    @property
+    def get_model(self):
+        return self.model
 
 
 class EncoderBlock:
@@ -12,7 +74,6 @@ class EncoderBlock:
         use_pooling=True,
         dropout=0.1
     ):
-
         self.use_pooling = use_pooling
 
         self.conv_1 = tf.keras.layers.Conv2D(
@@ -263,185 +324,113 @@ class DSPP(tf.keras.layers.Layer):
         return output
 
 
-def build_unet(
-        input_shape: tuple[int, int, int] = (256, 256, 3),
-        weights_path: str = None
-) -> tf.keras.models.Model:
+@Analyzer.inherit_doc
+class UnetAnalyzer(Analyzer):
+    def build_model(self, input_shape):
+        model_input = tf.keras.layers.Input(input_shape)
+
+        conv_1, pool_1 = EncoderBlock(16)(model_input)  # 256x256 -> 128x128
+        conv_2, pool_2 = EncoderBlock(32)(pool_1)  # 128x128 -> 64x64
+        conv_3, pool_3 = EncoderBlock(64)(pool_2)  # 64x64 -> 32x32
+        conv_4, pool_4 = EncoderBlock(128)(pool_3)  # 32x32 -> 16x16
+
+        conv_5, _ = EncoderBlock(256, use_pooling=False)(pool_4)
+
+        conv_6 = DecoderBlock(128, concatenate_with=[conv_4])(conv_5)  # 16x16 -> 32x32
+        conv_7 = DecoderBlock(64, concatenate_with=[conv_3])(conv_6)  # 32x32 -> 64x64
+        conv_8 = DecoderBlock(32, concatenate_with=[conv_2])(conv_7)  # 64x64 -> 128x128
+        conv_9 = DecoderBlock(16, concatenate_with=[conv_1])(conv_8)  # 128x128 -> 256x256
+
+        model_output = tf.keras.layers.Conv2D(1, (1, 1))(conv_9)
+        model_output = tf.keras.layers.Activation('sigmoid')(model_output)
+
+        return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='Unet_orig')
+
+
+@Analyzer.inherit_doc
+class UnetPlusPlusAnalyzer(Analyzer):
+    def build_model(self, input_shape):
+        model_input = tf.keras.layers.Input(input_shape)
+
+        conv_0_0, pool_1 = EncoderBlock(16)(model_input)  # 256x256 -> 128x128
+
+        conv_1_0, pool_2 = EncoderBlock(32)(pool_1)  # 128x128 -> 64x64
+        conv_0_1 = DecoderBlock(16, concatenate_with=[conv_0_0])(conv_1_0)
+
+        conv_2_0, pool_3 = EncoderBlock(64)(pool_2)  # 64x64 -> 32x32
+        conv_1_1 = DecoderBlock(32, concatenate_with=[conv_1_0])(conv_2_0)
+        conv_0_2 = DecoderBlock(16, concatenate_with=[conv_0_0, conv_0_1])(conv_1_1)
+
+        conv_3_0, pool_4 = EncoderBlock(128)(pool_3)  # 32x32 -> 16x16
+        conv_2_1 = DecoderBlock(64, concatenate_with=[conv_2_0])(conv_3_0)
+        conv_1_2 = DecoderBlock(32, concatenate_with=[conv_1_0, conv_1_1])(conv_2_1)
+        conv_0_3 = DecoderBlock(16, concatenate_with=[conv_0_0, conv_0_1, conv_0_2])(conv_1_2)
+
+        conv_4_0, _ = EncoderBlock(256, use_pooling=False)(pool_4)
+
+        conv_3_1 = DecoderBlock(128, concatenate_with=[conv_3_0])(conv_4_0)  # 16x16 -> 32x32
+        conv_2_2 = DecoderBlock(64, concatenate_with=[conv_2_0, conv_2_1])(conv_3_1)  # 32x32 -> 64x64
+        conv_1_3 = DecoderBlock(32, concatenate_with=[conv_1_0, conv_1_1, conv_1_2])(conv_2_2)  # 64x64 -> 128x128
+        conv_0_4 = DecoderBlock(16, concatenate_with=[conv_0_0, conv_0_1, conv_0_2, conv_0_3])(
+            conv_1_3)  # 128x128 -> 256x256
+
+        model_output = tf.keras.layers.Conv2D(1, (1, 1))(conv_0_4)
+        model_output = tf.keras.layers.Activation('sigmoid')(model_output)
+
+        return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='Unet_plus_plus')
+
+
+@Analyzer.inherit_doc
+class DeeplabV3plusAnalyzer(Analyzer):
     """
-    Возвращает не скомпилированную модель с архитектурой U-Net
+    :param mode: режим сверстки:
+        'original' - стандартный сверточный блок Conv + BN + ReLU,
+        'double' - двойной сверточный блок [Conv + BN + ReLU]x2
 
-    Можно написать путь к весам в ручную или использовать ключевые слова:
-        - 'auto_local' - автоматически найти путь к последним локально сохраненным весам (пока не работает),
-        - 'auto_remote' - автоматически найти путь к последним удаленно сохраненным весам,
-        - None - создать пустую модель (для обучения с нуля)
-
-    :param input_shape: размер входного изображения
-    :param weights_path: путь к сохраненным весам модели
+    *В случае двойной сверстки используется такое же количество фильтров, просто они распределенны на 2 блока*
     """
-    model_input = tf.keras.layers.Input(input_shape)
+    mode = None
 
-    conv_1, pool_1 = EncoderBlock(16)(model_input)  # 256x256 -> 128x128
-    conv_2, pool_2 = EncoderBlock(32)(pool_1)  # 128x128 -> 64x64
-    conv_3, pool_3 = EncoderBlock(64)(pool_2)  # 64x64 -> 32x32
-    conv_4, pool_4 = EncoderBlock(128)(pool_3)  # 32x32 -> 16x16
+    def __init__(self, mode: Literal['original', 'double'] = 'original', *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-    conv_5, _ = EncoderBlock(256, use_pooling=False)(pool_4)
+        self.mode = mode
 
-    conv_6 = DecoderBlock(128, concatenate_with=[conv_4])(conv_5)  # 16x16 -> 32x32
-    conv_7 = DecoderBlock(64, concatenate_with=[conv_3])(conv_6)  # 32x32 -> 64x64
-    conv_8 = DecoderBlock(32, concatenate_with=[conv_2])(conv_7)  # 64x64 -> 128x128
-    conv_9 = DecoderBlock(16, concatenate_with=[conv_1])(conv_8)  # 128x128 -> 256x256
-
-    model_output = tf.keras.layers.Conv2D(1, (1, 1))(conv_9)
-    model_output = tf.keras.layers.Activation('sigmoid')(model_output)
-
-    model = tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='Unet')
-
-    if weights_path:
-        if weights_path == "auto_local":
-            weights_path = get_local_weights_path(model.name)
-
-            model.load_weights(weights_path)
-        elif weights_path == "auto_remote":
-            weights_path = get_remote_weights_path(model.name)
-
-            model.load_weights(weights_path)
-            os.remove(weights_path)
+    def build_model(self, input_shape):
+        if self.mode == 'double':
+            conv_block = DoubleDeepLabConvBlock
         else:
-            model.load_weights(weights_path)
+            conv_block = DeepLabConvBlock
 
-    return model
+        model_input = tf.keras.layers.Input(input_shape)
 
+        resnet50 = tf.keras.applications.ResNet50(
+            weights="imagenet",
+            include_top=False,
+            input_tensor=model_input,
+            input_shape=input_shape
+        )
 
-def build_unet_plus_plus(
-        input_shape: tuple[int, int, int] = (256, 256, 3),
-        weights_path: str = None
-) -> tf.keras.models.Model:
-    """
-    Возвращает не скомпилированную модель с архитектурой U-Net++
+        x = resnet50.get_layer("conv4_block6_2_relu").output
+        x = DSPP(mode=self.mode)(x)
 
-    Можно написать путь к весам в ручную или использовать ключевые слова:
-        - 'auto_local' - автоматически найти путь к последним локально сохраненным весам (пока не работает),
-        - 'auto_remote' - автоматически найти путь к последним удаленно сохраненным весам,
-        - None - создать пустую модель (для обучения с нуля)
+        input_a = tf.keras.layers.UpSampling2D(
+            size=(input_shape[0] // 4 // x.shape[1], input_shape[1] // 4 // x.shape[2]),
+            interpolation="bilinear"
+        )(x)
 
-    :param input_shape: размер входного изображения
-    :param weights_path: путь к сохраненным весам модели
-    """
-    model_input = tf.keras.layers.Input(input_shape)
+        input_b = resnet50.get_layer("conv2_block3_2_relu").output
+        input_b = conv_block(num_filters=128, kernel_size=1)(input_b)
 
-    conv_0_0, pool_1 = EncoderBlock(16)(model_input)  # 256x256 -> 128x128
+        x = tf.keras.layers.Concatenate(axis=-1)([input_a, input_b])
+        x = conv_block()(x)
+        x = conv_block()(x)
+        x = tf.keras.layers.UpSampling2D(
+            size=(input_shape[0] // x.shape[1], input_shape[1] // x.shape[2]),
+            interpolation="bilinear"
+        )(x)
 
-    conv_1_0, pool_2 = EncoderBlock(32)(pool_1)  # 128x128 -> 64x64
-    conv_0_1 = DecoderBlock(16, concatenate_with=[conv_0_0])(conv_1_0)
+        model_output = tf.keras.layers.Conv2D(1, kernel_size=(1, 1), padding="same")(x)
+        model_output = tf.keras.layers.Activation('sigmoid')(model_output)
 
-    conv_2_0, pool_3 = EncoderBlock(64)(pool_2)  # 64x64 -> 32x32
-    conv_1_1 = DecoderBlock(32, concatenate_with=[conv_1_0])(conv_2_0)
-    conv_0_2 = DecoderBlock(16, concatenate_with=[conv_0_0, conv_0_1])(conv_1_1)
-
-    conv_3_0, pool_4 = EncoderBlock(128)(pool_3)  # 32x32 -> 16x16
-    conv_2_1 = DecoderBlock(64, concatenate_with=[conv_2_0])(conv_3_0)
-    conv_1_2 = DecoderBlock(32, concatenate_with=[conv_1_0, conv_1_1])(conv_2_1)
-    conv_0_3 = DecoderBlock(16, concatenate_with=[conv_0_0, conv_0_1, conv_0_2])(conv_1_2)
-
-    conv_4_0, _ = EncoderBlock(256, use_pooling=False)(pool_4)
-
-    conv_3_1 = DecoderBlock(128, concatenate_with=[conv_3_0])(conv_4_0)  # 16x16 -> 32x32
-    conv_2_2 = DecoderBlock(64, concatenate_with=[conv_2_0, conv_2_1])(conv_3_1)  # 32x32 -> 64x64
-    conv_1_3 = DecoderBlock(32, concatenate_with=[conv_1_0, conv_1_1, conv_1_2])(conv_2_2)  # 64x64 -> 128x128
-    conv_0_4 = DecoderBlock(16, concatenate_with=[conv_0_0, conv_0_1, conv_0_2, conv_0_3])(conv_1_3)  # 128x128 -> 256x256
-
-    model_output = tf.keras.layers.Conv2D(1, (1, 1))(conv_0_4)
-    model_output = tf.keras.layers.Activation('sigmoid')(model_output)
-
-    model = tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='Unet_plus_plus')
-
-    if weights_path:
-        if weights_path == "auto_local":
-            weights_path = get_local_weights_path(model.name)
-
-            model.load_weights(weights_path)
-        elif weights_path == "auto_remote":
-            weights_path = get_remote_weights_path(model.name)
-
-            model.load_weights(weights_path)
-            os.remove(weights_path)
-        else:
-            model.load_weights(weights_path)
-
-    return model
-
-
-def build_deeplab_v3_plus(
-        input_shape: tuple[int, int, int] = (256, 256, 3),
-        weights_path: str = None,
-        mode: str = 'original'
-) -> tf.keras.models.Model:
-    """
-    Возвращает не скомпилированную модель с архитектурой DeepLabV3+
-
-    *Данная реализация DeepLabV3+ взята из публичного репозитория:*
-
-    https://github.com/keras-team/keras-io/blob/master/examples/vision/ipynb/deeplabv3_plus.ipynb
-
-    Можно написать путь к весам в ручную или использовать ключевые слова:
-        - 'auto_local' - автоматически найти путь к последним локально сохраненным весам (пока не работает),
-        - 'auto_remote' - автоматически найти путь к последним удаленно сохраненным весам,
-        - None - создать пустую модель (для обучения с нуля)
-
-    :param input_shape: размер входного изображения
-    :param weights_path: путь к сохраненным весам модели
-    :param mode: -
-    """
-    if mode == 'double':
-        conv_block = DoubleDeepLabConvBlock
-    else:
-        conv_block = DeepLabConvBlock
-
-    model_input = tf.keras.layers.Input(input_shape)
-
-    resnet50 = tf.keras.applications.ResNet50(
-        weights="imagenet",
-        include_top=False,
-        input_tensor=model_input,
-        input_shape=input_shape
-    )
-
-    x = resnet50.get_layer("conv4_block6_2_relu").output
-    x = DSPP(mode=mode)(x)
-
-    input_a = tf.keras.layers.UpSampling2D(
-        size=(input_shape[0] // 4 // x.shape[1], input_shape[1] // 4 // x.shape[2]),
-        interpolation="bilinear"
-    )(x)
-
-    input_b = resnet50.get_layer("conv2_block3_2_relu").output
-    input_b = conv_block(num_filters=128, kernel_size=1)(input_b)
-
-    x = tf.keras.layers.Concatenate(axis=-1)([input_a, input_b])
-    x = conv_block()(x)
-    x = conv_block()(x)
-    x = tf.keras.layers.UpSampling2D(
-        size=(input_shape[0] // x.shape[1], input_shape[1] // x.shape[2]),
-        interpolation="bilinear"
-    )(x)
-
-    model_output = tf.keras.layers.Conv2D(1, kernel_size=(1, 1), padding="same")(x)
-    model_output = tf.keras.layers.Activation('sigmoid')(model_output)
-
-    model = tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='DeepLabV3_plus')
-
-    if weights_path:
-        if weights_path == "auto_local":
-            weights_path = get_local_weights_path(model.name)
-
-            model.load_weights(weights_path)
-        elif weights_path == "auto_remote":
-            weights_path = get_remote_weights_path(model.name)
-
-            model.load_weights(weights_path)
-            os.remove(weights_path)
-        else:
-            model.load_weights(weights_path)
-
-    return model
+        return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='DeepLabV3_plus')

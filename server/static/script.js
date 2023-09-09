@@ -39,8 +39,37 @@ let controlsOptions = {
     }
 };
 
+let bounds = L.latLngBounds(
+    L.latLng(47.132631, 39.372211),
+    L.latLng(47.375889, 39.873439)
+);
 
-let bounds = L.latLngBounds(L.latLng(47.132631, 39.372211), L.latLng(47.375889, 39.873439));
+
+L.Control.ModelSwitchControl = L.Control.extend({
+    onAdd: function(map) {
+        let control = L.DomUtil.create('div', 'control-model-switch');
+
+        control.innerHTML = `
+            <form>
+                <div id="model-switch">
+                    <label class="model-switch-block" id="radio-unet"><input type="radio" name="model-switch-group" value="unet">U-Net</label>
+                    <label class="model-switch-block" id="radio-unet-plus-plus"><input type="radio" name="model-switch-group" value="unet_plus_plus">U-Net++</label>
+                    <label class="model-switch-block" id="radio-deeplab-v3-plus"><input type="radio" name="model-switch-group" value="deeplab_v3_plus">DeepLabV3+</label>
+                </div>
+            </form>
+        `;
+
+        return control;
+    },
+
+    onRemove: function(map) {}
+});
+
+L.control.ModelSwitchControl = function(opts) {
+    return new L.Control.ModelSwitchControl(opts);
+};
+
+
 let tilesLayer = new L.TileLayer(TILES_URL, mapOptions);
 let metaLayer = new L.TileLayer(META_URL, mapOptions);
 let featuresLayer = new L.FeatureGroup();
@@ -52,6 +81,15 @@ map.addLayer(tilesLayer);
 map.addLayer(metaLayer);
 map.addLayer(featuresLayer);
 map.addControl(new L.Control.Draw(controlsOptions));
+map.addControl(new L.control.ModelSwitchControl({position: 'topleft'}));
+
+
+let leafletDrawToolbar = document.getElementsByClassName("leaflet-draw-toolbar leaflet-bar leaflet-draw-toolbar-top")[0];
+let modelSwitch = document.getElementById("model-switch");
+
+document.getElementById("radio-unet").children[0].checked = true;
+leafletDrawToolbar.style.display = 'none';
+
 
 map.on('drag', function() {
     map.panInsideBounds(bounds, { animate: false });
@@ -109,12 +147,23 @@ map.on('draw:created', function(e) {
         tileX = tileX + 1;
     }
 
+    let selectedModel = null;
+
+    for (let label of modelSwitch.children) {
+        let modelSwitchButton = label.children[0];
+
+        if (modelSwitchButton.checked) {
+            selectedModel = modelSwitchButton.value;
+        }
+    }
+
     // отправляем для анализа координаты задетых тайлов и точки полигона описывающего выделенную пользователем область
     fetch("http://127.0.0.1/analyze", {
         method: "POST",
         body: JSON.stringify({
             "tiles_coords": tiles_coords,
-            "analyze_area_polygon": e.layer._latlngs[0]
+            "analyze_area_polygon": e.layer._latlngs[0],
+            "selected_model": selectedModel
         }),
         headers: {
             "Content-type": "application/json; charset=UTF-8"
@@ -135,9 +184,6 @@ map.on('draw:created', function(e) {
         });
 });
 
-
-let leafletDrawToolbar = document.getElementsByClassName("leaflet-draw-toolbar leaflet-bar leaflet-draw-toolbar-top")[0];
-
 map.on('zoomend', function() {
     if (map.getZoom() > 15) {
         if (leafletDrawToolbar.style.display != null) {
@@ -149,5 +195,3 @@ map.on('zoomend', function() {
         }
     }
 });
-
-leafletDrawToolbar.style.display = 'none';

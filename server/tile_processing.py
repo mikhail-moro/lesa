@@ -5,7 +5,7 @@ import aiohttp
 import numpy as np
 import tensorflow as tf
 
-from shapely import Polygon, MultiPolygon
+from shapely import Polygon
 from PIL import Image
 from io import BytesIO
 from skimage import restoration, measure
@@ -178,4 +178,4 @@ def postprocess_tiles(
                         "area": float(geom_area)
                     })
 
-    return {"polygons": polygons}
+    return {"polygons": polygons, "success": True, "message:": None}

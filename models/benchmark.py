@@ -2,6 +2,8 @@ import argparse
 import os.path
 import tensorflow
 
+from . import BENCHMARK_IMAGES_DIR_PATH, BENCHMARK_MASKS_DIR_PATH
+
 
 unet_archs = [
     'unet',
@@ -32,9 +34,6 @@ models_archs = [
     *deeplab_v3_plus_archs
 ]
 
-IMAGES_PATH = os.path.join("benchmark_data", "tiles")
-MASKS_PATH = os.path.join("benchmark_data", "masks")
-
 layers = ["zoom_16", "zoom_17", "zoom_18"]
 rescaling = tensorflow.keras.layers.Rescaling(1. / 255.)
 
@@ -59,8 +58,8 @@ class Benchmark:
         self,
         test_metrics: tensorflow.keras.metrics.Metric | list[tensorflow.keras.metrics.Metric] | tuple[tensorflow.keras.metrics.Metric] = tensorflow.metrics.BinaryIoU(),
         save_for_visualising: bool = False,
-        images_path: str = IMAGES_PATH,
-        masks_path: str = MASKS_PATH
+        images_path: str = BENCHMARK_IMAGES_DIR_PATH,
+        masks_path: str = BENCHMARK_MASKS_DIR_PATH
     ):
         """
         Класс позволяющий тестировать модель на заранее размеченных изображениях разного масштаба

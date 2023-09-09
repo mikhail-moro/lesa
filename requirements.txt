@@ -1,0 +1,9 @@
+Flask
+numpy
+tensorflow
+livelossplot
+google-api-python-client
+shapely
+Pillow
+scikit-image
+aiohttp
