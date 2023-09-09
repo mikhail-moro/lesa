@@ -59,7 +59,6 @@ class Analyzer(ABC):
                 self.model.load_weights(os.path.join(weights_dir, weights_file))
 
     def __call__(self, input_tensor: tf.Tensor):
-        print("call")
         return self.model.predict(input_tensor, verbose=None)
 
     @property

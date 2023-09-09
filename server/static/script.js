@@ -157,13 +157,12 @@ map.on('draw:created', function(e) {
         }
     }
 
-    // отправляем для анализа координаты задетых тайлов и точки полигона описывающего выделенную пользователем область
-    fetch("http://127.0.0.1/analyze", {
+    fetch(window.location.protocol + "//" + window.location.host + "/analyze", {
         method: "POST",
         body: JSON.stringify({
-            "tiles_coords": tiles_coords,
-            "analyze_area_polygon": e.layer._latlngs[0],
-            "selected_model": selectedModel
+            "tiles_coords": tiles_coords, // координаты задетых тайлов
+            "analyze_area_polygon": e.layer._latlngs[0], // точки полигона описывающего выделенную пользователем область
+            "selected_model": selectedModel // выбранная для анализа модель
         }),
         headers: {
             "Content-type": "application/json; charset=UTF-8"
