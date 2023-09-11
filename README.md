@@ -15,7 +15,7 @@
   
   - :x: Отчет с аналитикой
 
-### Демонстрация работы сервиса
+### Демонстрация работы сервиса (ссылка на YouTube-видео)
 [![Демонстрация работы](https://img.youtube.com/vi/okUjgAhp0fM/maxresdefault.jpg)](https://www.youtube.com/watch?v=okUjgAhp0fM)
 
 ### Запуск сервиса
