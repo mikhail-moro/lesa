@@ -10,36 +10,45 @@ from .utils import get_local_weights_path, get_remote_weights_path
 
 class Analyzer(ABC):
     """
-    Можно написать название файла с весами вручную или использовать ключевые значения:
-        - 'auto' - автоматически найти путь к последним локально сохраненным весам (если задан аргумент weights_dir или weights_destination = 'remote'),
-        - None - создать пустую модель (для обучения с нуля)
+    Абстрактный класс-обертка для использования tensorflow.keras моделей
+
+    Веса для модели можно загрузить из удаленной или локальной директории:
+        - Локальная загрузка:
+            - weights_file: название .h5-файла или 'auto',
+            - weights_dir: абсолютный путь к директории с файлами весов,
+            - weights_destination: 'local',
+            - google_drive_credits_path: None.
+        - Удаленная загрузка:
+            - weights_file: название .h5-файла или 'auto',
+            - weights_dir: id Google Drive директории,
+            - weights_destination: 'remote',
+            - google_drive_credits_path: путь к json-файлу для доступа к удаленной Google Drive директории.
+        - Пустая модель для обучения с нуля (*можно просто не задавать аргументы*):
+            - weights_file: None,
+            - weights_dir: None,
+            - weights_destination: None,
+            - google_drive_credits_path: None.
 
     :param input_shape: размер входного изображения
-    :param weights_file: название файла с весами
-    :param weights_dir: путь/id к директории с сохраненными весами модели
-    :param weights_destination: расположение директории с весами: 'local' - использовать веса из локальной директории, 'remote' - использовать веса из удаленной Google Drive директории
+    :param weights_file: название файла с весами или 'auto' (будет использован последный созданный для этой модели файл весов)
+    :param weights_dir: абсолютный путь/id к директории с сохраненными весами
+    :param weights_destination: 'local' - использовать веса из локальной директории, 'remote' - использовать веса из удаленной Google Drive директории
+    :param google_drive_credentials_path: путь к json-файлу для доступа к удаленной Google Drive директории
     """
     model: tf.keras.models.Model = None
+    client_name: str = None  # название модели на стороне клиента (приходит в json-файле при запросе)
 
     @abc.abstractmethod
     def build_model(self, input_shape):
         raise NotImplementedError()
 
-    @staticmethod
-    def inherit_doc(target):
-        if target.__doc__:
-            target.__doc__ = Analyzer.__doc__ + target.__doc__
-        else:
-            target.__doc__ = Analyzer.__doc__
-
-        return target
-
     def __init__(
         self,
         input_shape: tuple[int, int, int] = (256, 256, 3),
-        weights_file: str = None,
+        weights_file: Literal['auto'] | str = None,
         weights_dir: str = None,
-        weights_destination: Literal['local', 'remote'] = 'local'
+        weights_destination: Literal['local', 'remote'] = None,
+        google_drive_credentials_path: str = None
     ):
         self.model = self.build_model(input_shape)
 
@@ -51,10 +60,10 @@ class Analyzer(ABC):
                     self.model.load_weights(weights_path)
 
                 if weights_destination == "remote":
-                    weights_path = get_remote_weights_path(self.model.name)
+                    weights_path = get_remote_weights_path(self.model.name, weights_dir, google_drive_credentials_path)
 
                     self.model.load_weights(weights_path)
-                    os.remove(weights_path)
+                    os.remove(weights_path)  # удаляем временный файл весов после загрузки
             else:
                 self.model.load_weights(os.path.join(weights_dir, weights_file))
 
@@ -64,6 +73,14 @@ class Analyzer(ABC):
     @property
     def get_model(self):
         return self.model
+
+    @staticmethod
+    def set_client_name(model_client_name: str):
+        def _set_name(target):
+            target.client_name = model_client_name
+            return target
+
+        return _set_name
 
 
 class EncoderBlock:
@@ -323,7 +340,7 @@ class DSPP(tf.keras.layers.Layer):
         return output
 
 
-@Analyzer.inherit_doc
+@Analyzer.set_client_name('unet')
 class UnetAnalyzer(Analyzer):
     def build_model(self, input_shape):
         model_input = tf.keras.layers.Input(input_shape)
@@ -346,7 +363,7 @@ class UnetAnalyzer(Analyzer):
         return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='Unet_orig')
 
 
-@Analyzer.inherit_doc
+@Analyzer.set_client_name('unet_plus_plus')
 class UnetPlusPlusAnalyzer(Analyzer):
     def build_model(self, input_shape):
         model_input = tf.keras.layers.Input(input_shape)
@@ -379,7 +396,7 @@ class UnetPlusPlusAnalyzer(Analyzer):
         return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='Unet_plus_plus')
 
 
-@Analyzer.inherit_doc
+@Analyzer.set_client_name('deeplab_v3_plus')
 class DeeplabV3plusAnalyzer(Analyzer):
     """
     :param mode: режим сверстки:
@@ -433,3 +450,33 @@ class DeeplabV3plusAnalyzer(Analyzer):
         model_output = tf.keras.layers.Activation('sigmoid')(model_output)
 
         return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='DeepLabV3_plus')
+
+
+class AnalyzersManager:
+    """
+    Класс упрощающий инициализацию и доступ к моделям для анализа картографических изображений
+
+    :param selected_models: используемые архитектуры моделей
+    :param analyzers_kwargs: параметры которые будут использованны при инициализации каждой модели, *подробнее смотреть в models.models.Analyzer*
+    """
+    _analyzers = {}
+
+    def __init__(self, selected_models: list[str], **analyzers_kwargs):
+        for model in selected_models:
+            print(f"Инициализация {model}...")
+
+            if model == 'unet':
+                analyzer = UnetAnalyzer(**analyzers_kwargs)
+                self._analyzers[analyzer.client_name] = analyzer
+            if model == 'unet_plus_plus':
+                analyzer = UnetPlusPlusAnalyzer(**analyzers_kwargs)
+                self._analyzers[analyzer.client_name] = analyzer
+            if model == 'deeplab_v3_plus':
+                analyzer = DeeplabV3plusAnalyzer(**analyzers_kwargs)
+                self._analyzers[analyzer.client_name] = analyzer
+
+    def __getitem__(self, item):
+        if item in self._analyzers:
+            return self._analyzers[item]
+        else:
+            return None

@@ -11,7 +11,7 @@ from google.oauth2 import service_account
 from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 from googleapiclient.discovery import build
 
-from . import WEIGHTS_DIR_PATH, TMP_WEIGHTS_DIR_PATH, CREDITS_FILE_PATH
+from . import WEIGHTS_DIR_PATH, TMP_WEIGHTS_DIR_PATH
 
 
 SCOPES = ['https://www.googleapis.com/auth/drive']
@@ -51,7 +51,7 @@ def save_weights_local(model: tf.keras.models.Model, local_dir_path: str) -> Non
     model.save_weights(os.path.join(local_dir_path, name))
 
 
-def save_weights_remote(model: tf.keras.models.Model, remote_dir_id: str) -> None:
+def save_weights_remote(model: tf.keras.models.Model, remote_dir_id: str, credentials_file_path: str) -> None:
     if not os.path.exists(TMP_WEIGHTS_DIR_PATH):
         os.mkdir(TMP_WEIGHTS_DIR_PATH)
 
@@ -61,7 +61,7 @@ def save_weights_remote(model: tf.keras.models.Model, remote_dir_id: str) -> Non
     model.save_weights(temp_weights_path)
 
     credentials = service_account.Credentials.from_service_account_file(
-        CREDITS_FILE_PATH,
+        credentials_file_path,
         scopes=SCOPES
     )
     service = build('drive', 'v3', credentials=credentials)
@@ -75,7 +75,7 @@ def save_weights_remote(model: tf.keras.models.Model, remote_dir_id: str) -> Non
     service.files().create(body=file_metadata, media_body=media, fields='id').execute()
 
 
-def get_local_weights_path(model_name: str, local_dir_path: str) -> str | None:
+def get_local_weights_path(model_name: str, weights_dir_path: str) -> str | None:
     """
     Возвращает путь с самым последним локально сохраненным файлом весов для данной модели, None - если сохраненных весов
     нет
@@ -83,14 +83,14 @@ def get_local_weights_path(model_name: str, local_dir_path: str) -> str | None:
     names = [i for i in os.listdir(WEIGHTS_DIR_PATH) if model_name in i]
 
     try:
-        return os.path.join(local_dir_path, names[np.argmax([_get_date_from_name(i) for i in names])])
+        return os.path.join(weights_dir_path, names[np.argmax([_get_date_from_name(i) for i in names])])
     except Exception as ex:
         print(ex)
 
         return None
 
 
-def get_remote_weights_path(model_name: str):
+def get_remote_weights_path(model_name: str, weights_dir_id: str, credentials_file_path: str):
     """
     Загружает последний сохраненный файл весов для данной модели и возвращает путь к загруженному файлу, None - если
     сохраненных весов нет или если при загрузке произошла ошибка
@@ -99,7 +99,7 @@ def get_remote_weights_path(model_name: str):
         os.mkdir(TMP_WEIGHTS_DIR_PATH)
 
     credentials = service_account.Credentials.from_service_account_file(
-        CREDITS_FILE_PATH,
+        credentials_file_path,
         scopes=SCOPES
     )
 
@@ -108,7 +108,7 @@ def get_remote_weights_path(model_name: str):
     file = service.files().list(
         pageSize=999,
         fields="files(id, name)",
-        q=f"name contains '{model_name}'",
+        q=f"'{weights_dir_id}' in parents and name contains '{model_name}'",
         orderBy="createdTime desc"
     ).execute()["files"]
 

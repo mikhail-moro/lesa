@@ -14,6 +14,7 @@ let mapOptions = {
     minZoom: 12
 };
 
+let featuresLayer = new L.FeatureGroup();
 let controlsOptions = {
     position: 'topleft',
     draw: {
@@ -36,6 +37,10 @@ let controlsOptions = {
         marker: false,
         polyline: false,
         circlemarker: false
+    },
+    edit: {
+        featureGroup: featuresLayer,
+        edit: false
     }
 };
 
@@ -72,7 +77,6 @@ L.control.ModelSwitchControl = function(opts) {
 
 let tilesLayer = new L.TileLayer(TILES_URL, mapOptions);
 let metaLayer = new L.TileLayer(META_URL, mapOptions);
-let featuresLayer = new L.FeatureGroup();
 
 
 let map = new L.map('map', mapOptions);
@@ -93,10 +97,6 @@ leafletDrawToolbar.style.display = 'none';
 
 map.on('drag', function() {
     map.panInsideBounds(bounds, { animate: false });
-});
-
-map.on('zoomstart', function() {
-    featuresLayer.clearLayers()
 });
 
 map.on('draw:created', function(e) {
@@ -175,7 +175,7 @@ map.on('draw:created', function(e) {
                 polygonArea = Number(polygonArea).toFixed(2)
 
                 L.polygon(polygonData["coords"])
-                    .addTo(map)
+                    .addTo(featuresLayer)
                     .bindPopup(polygonArea + " м²");
             }
 

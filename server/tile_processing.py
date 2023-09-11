@@ -142,40 +142,41 @@ def postprocess_tiles(
         contour[:, [0, 1]] = contour[:, [1, 0]]
 
         polygon = Polygon(contour)
-        polygon = polygon.simplify(tolerance=0.5)
+        polygon = polygon.simplify(tolerance=0.6)
 
-        if polygon.area > MIN_POLYGON_AREA:
+        if polygon.area > 0.:
             # чтобы полигон не выходил за выделенную пользователем область (описываемую полигоном analyze_area_polygon)
             # возьмём их пересечение
             polygon = analyze_area_polygon & polygon
 
-            if isinstance(polygon, Polygon):
-                polygon_area = polygon.area
+            if polygon.area > MIN_POLYGON_AREA:
+                if isinstance(polygon, Polygon):
+                    polygon_area = polygon.area
 
-                polygon = _pix_coords_to_latlngs(
-                    *polygon.exterior.xy,
-                    start_tile_coords=start_tile_coords
-                )
-
-                polygons.append({
-                    "coords": polygon.astype(float).tolist(),  # numpy объекты не serializable
-                    "area": float(polygon_area)
-                })
-            else:
-                # в некоторых случаях пересечение полигонов создает класс shapely.MultiPolygon, из которого нужно в
-                # цикле извлекать еденичные полигоны
-                for geom in polygon.geoms:
-                    geom_area = polygon.area
-
-                    geom = _pix_coords_to_latlngs(
-                        *geom.exterior.xy,
+                    polygon = _pix_coords_to_latlngs(
+                        *polygon.exterior.xy,
                         start_tile_coords=start_tile_coords
                     )
 
-                    polygons.append(geom.astype(float).tolist())
                     polygons.append({
-                        "coords": geom.astype(float).tolist(),
-                        "area": float(geom_area)
+                        "coords": polygon.astype(float).tolist(),  # numpy объекты не serializable
+                        "area": float(polygon_area)
                     })
+                else:
+                    # в некоторых случаях пересечение полигонов создает класс shapely.MultiPolygon, из которого нужно в
+                    # цикле извлекать еденичные полигоны
+                    for geom in polygon.geoms:
+                        geom_area = polygon.area
+
+                        geom = _pix_coords_to_latlngs(
+                            *geom.exterior.xy,
+                            start_tile_coords=start_tile_coords
+                        )
+
+                        polygons.append(geom.astype(float).tolist())
+                        polygons.append({
+                            "coords": geom.astype(float).tolist(),
+                            "area": float(geom_area)
+                        })
 
     return {"polygons": polygons, "success": True, "message:": None}

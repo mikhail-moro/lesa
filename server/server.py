@@ -1,3 +1,5 @@
+import traceback
+
 from flask import Flask, render_template, request, jsonify
 from .tile_processing import preprocess_tiles, postprocess_tiles, load_tiles
 
@@ -14,62 +16,42 @@ def main():
 def analyze():
     data = request.get_json()
 
-    tiles, width, height = load_tiles(data["tiles_coords"])
-
-    input_batch = preprocess_tiles(tiles, width, height)
-    out_batch = analyze_tiles(data["selected_model"], input_batch)
-
-    if out_batch is not None:
-        json = postprocess_tiles(
-            out_batch=out_batch,
-            width=width,
-            height=height,
-            start_tile_coords=data["tiles_coords"][0],
-            analyze_area_polygon_dots=data["analyze_area_polygon"]
-        )
-
-        return jsonify(json)
-    else:
-        return jsonify({"polygons": None, "success": False, "message:": "Данная модель недоступна"})
-    """
     try:
-        tiles, width, height = load_tiles(data["tiles_coords"])
+        tiles_coords = data["tiles_coords"]
+        start_tiles_coords = data["tiles_coords"][0]
+        model_name = data["selected_model"]
+        analyze_area_polygon = data["analyze_area_polygon"]
+
+        tiles, width, height = load_tiles(tiles_coords)
 
         input_batch = preprocess_tiles(tiles, width, height)
-        out_batch = analyze_tiles(data["selected_model"], input_batch)
+        out_batch = tiles_analyzer[model_name](input_batch)
 
         if out_batch is not None:
             json = postprocess_tiles(
                 out_batch=out_batch,
                 width=width,
                 height=height,
-                start_tile_coords=data["tiles_coords"][0],
-                analyze_area_polygon_dots=data["analyze_area_polygon"]
+                start_tile_coords=start_tiles_coords,
+                analyze_area_polygon_dots=analyze_area_polygon
             )
 
             return jsonify(json)
         else:
             return jsonify({"polygons": None, "success": False, "message:": "Данная модель недоступна"})
-    except Exception as ex:
-        print(ex)
+    except Exception:
+        error_logger.log(log_type='error', request=str(data), traceback=traceback.format_exc())
 
         return 'Not Found', 404
-    """
 
 
-def run_server(host: str, port: int, models: dict):
-    global analyze_tiles
-    global availible_models
+def run_server(host: str, port: int, analyzer, logger):
+    """Запуск Flask-приложения"""
+    global tiles_analyzer
+    global error_logger
 
-    availible_models = models
-
-    def _model_func(model_name: str, input_batch):
-        if model_name in models:
-            return availible_models[model_name](input_batch)
-        else:
-            return None
-
-    analyze_tiles = _model_func
+    tiles_analyzer = analyzer
+    error_logger = logger
 
     print("Запуск Flask-приложения...")
 
