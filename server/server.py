@@ -39,8 +39,12 @@ def analyze():
             return jsonify(json)
         else:
             return jsonify({"polygons": None, "success": False, "message:": "Данная модель недоступна"})
-    except Exception:
-        error_logger.log(log_type='error', request=str(data), traceback=traceback.format_exc())
+    except Warning as wn:
+        print(wn)
+        error_logger.log(log_type='Warning', request=str(data), traceback=traceback.format_exc())
+    except Exception as ex:
+        print(ex)
+        error_logger.log(log_type='Exception', request=str(data), traceback=traceback.format_exc())
 
         return 'Not Found', 404
 

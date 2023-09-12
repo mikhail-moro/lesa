@@ -22,7 +22,7 @@ class Logger:
         if not os.path.isfile(logs_file_path):
             open(logs_file_path, 'w').close()
 
-    def log(self, log_type: Literal['error'] | str, request, traceback):
+    def log(self, log_type: Literal['Exception', 'Warning'] | str, request, traceback):
         with open(self.logs_file_path, 'a') as logs_file:
             logs_file.write(
                 self._formatted_string.format(

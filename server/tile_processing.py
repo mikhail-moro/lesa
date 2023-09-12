@@ -10,7 +10,6 @@ from PIL import Image
 from io import BytesIO
 from skimage import restoration, measure
 
-
 TILES_SERVER = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
 
 TILE_SIZE = 256  # Ширина и высота тайла
@@ -19,7 +18,6 @@ BIN_TRESHOLD = .5  # Порог используемый при бинариза
 
 MIN_POLYGON_AREA = (TILE_SIZE * 0.05) * (TILE_SIZE * 0.05)  # Минимальная площадь полигона (5% тайла - by default)
 DECREASED_PADDING_SIZE = int(PADDING_SIZE * (TILE_SIZE / (TILE_SIZE + PADDING_SIZE * 2)))
-
 
 resize = tf.keras.layers.Resizing(TILE_SIZE, TILE_SIZE)
 rescale = tf.keras.layers.Rescaling(1. / 255.)
@@ -35,7 +33,7 @@ def _latlngs_to_pix_coords(lat: list, lng: list, start_tile_coords: dict):
     _2z = 2 ** start_tile_coords['z']
 
     tile_x = (lng + 180.0) / 360.0 * _2z
-    tile_y = (1.0 - (np.log(np.tan(lat_rad) + (1/np.cos(lat_rad)))) / np.pi) * (_2z / 2)  # 2^(z-1)
+    tile_y = (1.0 - (np.log(np.tan(lat_rad) + (1 / np.cos(lat_rad)))) / np.pi) * (_2z / 2)  # 2^(z-1)
 
     x = (tile_x - start_tile_coords['x']) * TILE_SIZE  # координаты тайлов в относительные пиксельные координаты
     y = (tile_y - start_tile_coords['y']) * TILE_SIZE
@@ -60,6 +58,7 @@ def _pix_coords_to_latlngs(x: array.array, y: array.array, start_tile_coords: di
     return np.dstack((lat, lng))
 
 
+# TODO сделать загрузку как отдельный класс
 def load_tiles(tiles_cords: list) -> (np.ndarray, int, int):
     xx = [i['x'] for i in tiles_cords]
     yy = [i['y'] for i in tiles_cords]
@@ -92,7 +91,8 @@ def preprocess_tiles(tiles_data: np.ndarray, width, height) -> tf.Tensor:
     # для того, чтобы модель лучше обрабатывала пиксели по краям тайлов, необходимо нарезать их с захватом контекста с
     # соседних тайлов
     empty_frame = np.zeros(((height * TILE_SIZE) + PADDING_SIZE * 2, (width * TILE_SIZE) + PADDING_SIZE * 2, 3))
-    stacked_tiles = np.vstack([np.hstack([tiles_data[i*width+j] for j in np.arange(width)]) for i in np.arange(height)])
+    stacked_tiles = np.vstack(
+        [np.hstack([tiles_data[i * width + j] for j in np.arange(width)]) for i in np.arange(height)])
 
     frame_height = stacked_tiles.shape[0]
     frame_width = stacked_tiles.shape[1]
@@ -109,13 +109,14 @@ def preprocess_tiles(tiles_data: np.ndarray, width, height) -> tf.Tensor:
 
 
 def postprocess_tiles(
-    out_batch: tf.Tensor,
-    width: int,
-    height: int,
-    start_tile_coords: dict,
-    analyze_area_polygon_dots: list[dict]
+        out_batch: tf.Tensor,
+        width: int,
+        height: int,
+        start_tile_coords: dict,
+        analyze_area_polygon_dots: list[dict]
 ) -> dict:
-    stacked_masks = np.vstack([np.hstack([out_batch[i*width+j] for j in np.arange(width)]) for i in np.arange(height)])
+    stacked_masks = np.vstack(
+        [np.hstack([out_batch[i * width + j] for j in np.arange(width)]) for i in np.arange(height)])
 
     denoised_masks = restoration.denoise_nl_means(
         stacked_masks.reshape((stacked_masks.shape[0], stacked_masks.shape[1])),
@@ -144,7 +145,7 @@ def postprocess_tiles(
         polygon = Polygon(contour)
         polygon = polygon.simplify(tolerance=0.6)
 
-        if polygon.area > 0.:
+        if polygon.area > 0. and polygon.intersects(analyze_area_polygon):
             # чтобы полигон не выходил за выделенную пользователем область (описываемую полигоном analyze_area_polygon)
             # возьмём их пересечение
             polygon = analyze_area_polygon & polygon
