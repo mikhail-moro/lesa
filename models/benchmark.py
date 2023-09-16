@@ -66,13 +66,6 @@ class Benchmark:
         :param test_metrics: метрики тестов
         :param save_for_visualising: сохранять ли результаты тестов в виде изображений для последующей визуализации (их можно будет получить с помощью метода get_image_results)
         """
-
-        if images_path is None or masks_path is None:
-            from . import BENCHMARK_IMAGES_DIR_PATH, BENCHMARK_MASKS_DIR_PATH
-
-            images_path = BENCHMARK_IMAGES_DIR_PATH,
-            masks_path = BENCHMARK_MASKS_DIR_PATH
-
         if not isinstance(test_metrics, (tuple, list)):
             self.metrics = [test_metrics]
         else:
