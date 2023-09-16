@@ -1,6 +1,7 @@
 import io
 import os.path
 import time
+import sys
 
 import numpy as np
 import tensorflow as tf
@@ -11,7 +12,13 @@ from google.oauth2 import service_account
 from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 from googleapiclient.discovery import build
 
-from . import WEIGHTS_DIR_PATH, TMP_WEIGHTS_DIR_PATH
+
+# Данный скрипт может быть запущен как из файлов main.py и tests.py (стандартным способом), так и отдельно импортирован,
+# например для обучения в Google Colab, в таком случае использовать относительные импорты не получиться
+SCRIPT_RUN_SEPARATE = sys.path[0] == __file__[:-9]
+
+if not SCRIPT_RUN_SEPARATE:
+    from . import WEIGHTS_DIR_PATH, TMP_WEIGHTS_DIR_PATH
 
 
 SCOPES = ['https://www.googleapis.com/auth/drive']

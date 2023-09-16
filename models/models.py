@@ -1,11 +1,19 @@
 import abc
 import os
+import sys
 
 import tensorflow as tf
 
 from abc import ABC
 from typing import Literal
-from .utils import get_local_weights_path, get_remote_weights_path
+
+
+# Данный скрипт может быть запущен как из файлов main.py и tests.py (стандартным способом), так и отдельно импортирован,
+# например для обучения в Google Colab, в таком случае использовать относительные импорты не получиться
+SCRIPT_RUN_SEPARATE = sys.path[0] == __file__[:-10]
+
+if not SCRIPT_RUN_SEPARATE:
+    from .utils import get_local_weights_path, get_remote_weights_path
 
 
 class EncoderBlock:
@@ -289,6 +297,8 @@ class AnalyzeModel(ABC):
             - weights_destination: None,
             - google_drive_credits_path: None.
 
+    *ключевое слово 'auto' доступно только при запуске из main.py или tests.py*
+
     :param input_shape: размер входного изображения
     :param weights_file: название файла с весами или 'auto' (будет использован последный созданный для этой модели файл весов)
     :param weights_dir: абсолютный путь/id к директории с сохраненными весами
@@ -319,7 +329,7 @@ class AnalyzeModel(ABC):
     ):
         self.tf_model = self.build_model(input_shape)
 
-        if all((weights_file, weights_dir, weights_destination)) is not None:
+        if all((weights_file, weights_dir, weights_destination)) is not None or SCRIPT_RUN_SEPARATE:
             if weights_file == "auto":
                 if weights_destination == "local":
                     weights_path = get_local_weights_path(self.tf_model.name, weights_dir)

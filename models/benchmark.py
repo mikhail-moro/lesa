@@ -1,36 +1,16 @@
-import argparse
 import os.path
 import tensorflow
+import sys
 
 
-unet_archs = [
-    'unet',
-    'u-net'
-]
+# Данный скрипт может быть запущен как из файлов main.py и tests.py (стандартным способом), так и отдельно импортирован,
+# например для обучения в Google Colab, в таком случае использовать относительные импорты не получиться (как и
+# используемые с ними функции)
+SCRIPT_RUN_SEPARATE = sys.path[0] == __file__[:-13]
 
-unet_plus_plus_archs = [
-    'unet++',
-    'u-net++',
-    'unet-plus-plus',
-    'u-net-plus-plus',
-    'unet_plus_plus',
-    'u-net_plus-plus'
-]
+if not SCRIPT_RUN_SEPARATE:
+    from . import BENCHMARK_IMAGES_DIR_PATH, BENCHMARK_MASKS_DIR_PATH
 
-deeplab_v3_plus_archs = [
-    'deeplab',
-    'deeplabv3+',
-    'deeplab_v3+',
-    'deeplab-v3+',
-    'deeplab_v3_plus',
-    'deeplab-v3-plus'
-]
-
-models_archs = [
-    *unet_archs,
-    *unet_plus_plus_archs,
-    *deeplab_v3_plus_archs
-]
 
 layers = ["zoom_16", "zoom_17", "zoom_18"]
 rescaling = tensorflow.keras.layers.Rescaling(1. / 255.)
@@ -64,6 +44,11 @@ class Benchmark:
         :param test_metrics: метрики тестов
         :param save_for_visualising: сохранять ли результаты тестов в виде изображений для последующей визуализации (их можно будет получить с помощью метода get_image_results)
         """
+        if not SCRIPT_RUN_SEPARATE:
+            if images_path is None or masks_path in None:
+                images_path = BENCHMARK_IMAGES_DIR_PATH
+                masks_path = BENCHMARK_MASKS_DIR_PATH
+
         if not isinstance(test_metrics, (tuple, list)):
             self.metrics = [test_metrics]
         else:
@@ -157,33 +142,3 @@ class Benchmark:
             return self._images_data
         else:
             return None
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("model_arch", type=str)
-    parser.add_argument("weights_path", type=str)
-
-    args = parser.parse_args()
-    arch = str(args.model_arch).lower()
-    weights_path = args.weights_path
-
-    # добавить проверки аргументов
-
-    benchmark = Benchmark()
-
-    if arch in unet_archs:
-        from lesa.models.models import build_unet
-
-        # try
-        print(benchmark.compute(build_unet(weights_path=weights_path)))
-    elif arch in unet_plus_plus_archs:
-        from lesa.models.models import build_unet_plus_plus
-
-        print(benchmark.compute(build_unet_plus_plus(weights_path=weights_path)))
-    elif arch in deeplab_v3_plus_archs:
-        from lesa.models.models import build_deeplab_v3_plus
-
-        print(benchmark.compute(build_deeplab_v3_plus(weights_path=weights_path)))
-    else:
-        raise ValueError()  #
