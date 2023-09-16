@@ -2,8 +2,6 @@ import argparse
 import os.path
 import tensorflow
 
-from . import BENCHMARK_IMAGES_DIR_PATH, BENCHMARK_MASKS_DIR_PATH
-
 
 unet_archs = [
     'unet',
