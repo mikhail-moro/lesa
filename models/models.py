@@ -484,12 +484,12 @@ class ResNetBackboneUnet(AnalyzeModel):
 
         features_layers = ['conv1_relu', 'conv2_block3_out', 'conv3_block4_out', 'conv4_block6_out']
 
-        conv_1 = backbone.get_layer(features_layers[0]).output
-        conv_2 = backbone.get_layer(features_layers[1]).output
-        conv_3 = backbone.get_layer(features_layers[2]).output
-        conv_4 = backbone.get_layer(features_layers[3]).output
+        conv_1 = backbone.get_layer(features_layers[0]).output  # 256x256 -> 128xx128
+        conv_2 = backbone.get_layer(features_layers[1]).output  # 128x128 -> 64x64
+        conv_3 = backbone.get_layer(features_layers[2]).output  # 64x64 -> 32x32
+        conv_4 = backbone.get_layer(features_layers[3]).output  # 32x32 -> 16x16
 
-        conv_5 = backbone.output
+        conv_5 = DecoderBlock(256)(backbone.output)  # 16x16 -> 8x8 -> 16x16
 
         conv_6 = DecoderBlock(128, concatenate_with=[conv_4])(conv_5)  # 16x16 -> 32x32
         conv_7 = DecoderBlock(64, concatenate_with=[conv_3])(conv_6)  # 32x32 -> 64x64
