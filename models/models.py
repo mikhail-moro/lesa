@@ -124,6 +124,55 @@ class DecoderBlock:
         return conv
 
 
+class SingleDecoderBlock:
+    def __init__(
+        self,
+        num_filters,
+        concatenate_with=None,
+        dropout=0.1
+    ):
+        self.concatenate_with = concatenate_with if concatenate_with else []
+
+        self.conv_transpose = tf.keras.layers.Conv2DTranspose(
+            num_filters,
+            (3, 3),
+            padding='same',
+            strides=(2, 2),
+            kernel_initializer='he_normal',
+            use_bias=False
+        )
+        self.batch_norm_1 = tf.keras.layers.BatchNormalization()
+        self.activation_1 = tf.keras.layers.ReLU()
+        self.weights_concat = tf.keras.layers.Concatenate()
+
+        self.conv = tf.keras.layers.Conv2D(
+            num_filters,
+            (3, 3),
+            kernel_initializer='he_normal',
+            padding='same',
+            use_bias=False
+        )
+        self.batch_norm_2 = tf.keras.layers.BatchNormalization()
+        self.activation_2 = tf.keras.layers.ReLU()
+
+        self.dropout = tf.keras.layers.Dropout(dropout)
+
+    def __call__(self, inputs):
+        conv = self.conv_transpose(inputs)
+        conv = self.batch_norm_1(conv)
+        conv = self.activation_1(conv)
+
+        conv = self.weights_concat([conv, *self.concatenate_with])
+
+        conv = self.conv(conv)
+        conv = self.batch_norm_2(conv)
+        conv = self.activation_2(conv)
+
+        conv = self.dropout(conv)
+
+        return conv
+
+
 class DeepLabConvBlock(tf.keras.layers.Layer):
     def __init__(
             self,
@@ -329,8 +378,8 @@ class AnalyzeModel(ABC):
     ):
         self.tf_model = self.build_model(input_shape)
 
-        if not (SCRIPT_RUN_SEPARATE or all((weights_file, weights_dir, weights_destination)) is None):
-            if weights_file == "auto":
+        if all((weights_file, weights_dir, weights_destination, google_drive_credentials_path)):
+            if weights_file == "auto" and not SCRIPT_RUN_SEPARATE:
                 if weights_destination == "local":
                     weights_path = get_local_weights_path(self.tf_model.name, weights_dir)
 
@@ -488,15 +537,15 @@ class ResNetBackboneUnet(AnalyzeModel):
         conv_2 = backbone.get_layer(features_layers[1]).output  # 128x128 -> 64x64
         conv_3 = backbone.get_layer(features_layers[2]).output  # 64x64 -> 32x32
         conv_4 = backbone.get_layer(features_layers[3]).output  # 32x32 -> 16x16
+        conv_5 = backbone.output  # 16x16 -> 8x8
 
-        conv_5 = DecoderBlock(256)(backbone.output)  # 16x16 -> 8x8 -> 16x16
+        conv_6 = SingleDecoderBlock(256, concatenate_with=[conv_4])(conv_5)  # 8x8 -> 16x16
+        conv_7 = SingleDecoderBlock(128, concatenate_with=[conv_3])(conv_6)  # 16x16 -> 32x32
+        conv_8 = SingleDecoderBlock(64, concatenate_with=[conv_2])(conv_7)  # 32x32 -> 64x64
+        conv_9 = SingleDecoderBlock(32, concatenate_with=[conv_1])(conv_8)  # 64x64 -> 128x128
+        conv_10 = SingleDecoderBlock(16)(conv_9)  # 128x128 -> 256x256
 
-        conv_6 = DecoderBlock(128, concatenate_with=[conv_4])(conv_5)  # 16x16 -> 32x32
-        conv_7 = DecoderBlock(64, concatenate_with=[conv_3])(conv_6)  # 32x32 -> 64x64
-        conv_8 = DecoderBlock(32, concatenate_with=[conv_2])(conv_7)  # 64x64 -> 128x128
-        conv_9 = DecoderBlock(16, concatenate_with=[conv_1])(conv_8)  # 128x128 -> 256x256
-
-        model_output = tf.keras.layers.Conv2D(1, (1, 1))(conv_9)
+        model_output = tf.keras.layers.Conv2D(1, (1, 1))(conv_10)
         model_output = tf.keras.layers.Activation('sigmoid')(model_output)
 
         return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='Unet_orig_resnet')
