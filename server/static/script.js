@@ -53,21 +53,23 @@ let bounds = L.latLngBounds(
 L.Control.ModelSwitchControl = L.Control.extend({
     onAdd: function(map) {
         let control = L.DomUtil.create('div', 'control-model-switch');
+        let html = "<form><div id='model-switch'>"
 
-        control.innerHTML = `
-            <form>
-                <div id="model-switch">
-                    <label class="model-switch-block" id="radio-unet"><input type="radio" name="model-switch-group" value="unet">U-Net</label>
-                    <label class="model-switch-block" id="radio-unet-plus-plus"><input type="radio" name="model-switch-group" value="unet_plus_plus">U-Net++</label>
-                    <label class="model-switch-block" id="radio-deeplab-v3-plus"><input type="radio" name="model-switch-group" value="deeplab_v3_plus">DeepLabV3+</label>
-                </div>
-            </form>
-        `;
+        for (let index in models) {
+            let model = models[index];
+
+            if (index == 0) {
+                html += `\n<label class="model-switch-block"><input type="radio" name="model-switch-group" value="${model}" checked>${model}</label>`;
+            } else {
+                html += `\n<label class="model-switch-block" style="border-top: 1px solid #ccc"><input type="radio" name="model-switch-group" value="${model}">${model}</label>`;
+            }
+        }
+
+        html += "</div></form>";
+        control.innerHTML = html;
 
         return control;
-    },
-
-    onRemove: function(map) {}
+    }
 });
 
 L.control.ModelSwitchControl = function(opts) {
@@ -90,8 +92,6 @@ map.addControl(new L.control.ModelSwitchControl({position: 'topleft'}));
 
 let leafletDrawToolbar = document.getElementsByClassName("leaflet-draw-toolbar leaflet-bar leaflet-draw-toolbar-top")[0];
 let modelSwitch = document.getElementById("model-switch");
-
-document.getElementById("radio-unet").children[0].checked = true;
 leafletDrawToolbar.style.display = 'none';
 
 

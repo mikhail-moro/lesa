@@ -2,8 +2,8 @@ import argparse
 import atexit
 import os.path
 
-from server import remove_server_temps, run_server, Logger
-from models import remove_models_temps, AnalyzersManager
+from server import remove_server_temps, Server
+from models import remove_models_temps, Analyzer
 
 
 MAIN_PATH = __file__[:-8]  # убираем \main.py
@@ -13,6 +13,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('server_host', type=str)
     parser.add_argument('server_port', type=int)
+    parser.add_argument('requests_max_retries', type=int)
     parser.add_argument('logs_file_path', type=str)
     parser.add_argument('weights_location', type=str)
     parser.add_argument('local_weights_dir_path', type=str)
@@ -44,10 +45,16 @@ if __name__ == "__main__":
     else:
         analyzers_kwargs = {}
 
+    analyzer = Analyzer(selected_models, **analyzers_kwargs)
+
+    app = Server(
+        import_name=__name__,
+        analyzer=analyzer,
+        logs_file_path=os.path.join(MAIN_PATH, args.logs_file_path),
+        tiles_download_max_replies=5
+    )
+
     # удаление временных файлов при завершении скрипта
     atexit.register(lambda: [func() for func in [remove_server_temps, remove_models_temps]])
 
-    analyzers_manager = AnalyzersManager(selected_models, **analyzers_kwargs)
-    logger = Logger(os.path.join(MAIN_PATH, args.logs_file_path))
-
-    run_server(args.server_host, args.server_port, analyzers_manager, logger)
+    app.run(args.server_host, args.server_port)

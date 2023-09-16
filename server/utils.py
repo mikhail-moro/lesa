@@ -2,13 +2,14 @@ import os
 import datetime
 
 from typing import Literal
-from . import TMP_WEIGHTS_DIR_PATH
+from . import TMP_DIR_PATH
 
 
 class Logger:
     _logs_file_path = None
 
-    _formatted_string = """{log_type} log {datetime}:
+    _formatted_string = """
+{log_type} log {datetime}:
     Request: 
         {request}
     Traceback:
@@ -35,5 +36,5 @@ class Logger:
 
 
 def remove_server_temps():
-    for file in os.listdir(TMP_WEIGHTS_DIR_PATH):
-        os.remove(os.path.join(TMP_WEIGHTS_DIR_PATH, file))
+    for file in os.listdir(TMP_DIR_PATH):
+        os.remove(os.path.join(TMP_DIR_PATH, file))

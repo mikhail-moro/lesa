@@ -8,81 +8,6 @@ from typing import Literal
 from .utils import get_local_weights_path, get_remote_weights_path
 
 
-class Analyzer(ABC):
-    """
-    Абстрактный класс-обертка для использования tensorflow.keras моделей
-
-    Веса для модели можно загрузить из удаленной или локальной директории:
-        - Локальная загрузка:
-            - weights_file: название .h5-файла или 'auto',
-            - weights_dir: абсолютный путь к директории с файлами весов,
-            - weights_destination: 'local',
-            - google_drive_credits_path: None.
-        - Удаленная загрузка:
-            - weights_file: название .h5-файла или 'auto',
-            - weights_dir: id Google Drive директории,
-            - weights_destination: 'remote',
-            - google_drive_credits_path: путь к json-файлу для доступа к удаленной Google Drive директории.
-        - Пустая модель для обучения с нуля (*можно просто не задавать аргументы*):
-            - weights_file: None,
-            - weights_dir: None,
-            - weights_destination: None,
-            - google_drive_credits_path: None.
-
-    :param input_shape: размер входного изображения
-    :param weights_file: название файла с весами или 'auto' (будет использован последный созданный для этой модели файл весов)
-    :param weights_dir: абсолютный путь/id к директории с сохраненными весами
-    :param weights_destination: 'local' - использовать веса из локальной директории, 'remote' - использовать веса из удаленной Google Drive директории
-    :param google_drive_credentials_path: путь к json-файлу для доступа к удаленной Google Drive директории
-    """
-    model: tf.keras.models.Model = None
-    client_name: str = None  # название модели на стороне клиента (приходит в json-файле при запросе)
-
-    @abc.abstractmethod
-    def build_model(self, input_shape):
-        raise NotImplementedError()
-
-    def __init__(
-        self,
-        input_shape: tuple[int, int, int] = (256, 256, 3),
-        weights_file: Literal['auto'] | str = None,
-        weights_dir: str = None,
-        weights_destination: Literal['local', 'remote'] = None,
-        google_drive_credentials_path: str = None
-    ):
-        self.model = self.build_model(input_shape)
-
-        if all((weights_file, weights_dir, weights_destination)) is not None:
-            if weights_file == "auto":
-                if weights_destination == "local":
-                    weights_path = get_local_weights_path(self.model.name, weights_dir)
-
-                    self.model.load_weights(weights_path)
-
-                if weights_destination == "remote":
-                    weights_path = get_remote_weights_path(self.model.name, weights_dir, google_drive_credentials_path)
-
-                    self.model.load_weights(weights_path)
-                    os.remove(weights_path)  # удаляем временный файл весов после загрузки
-            else:
-                self.model.load_weights(os.path.join(weights_dir, weights_file))
-
-    def __call__(self, input_tensor: tf.Tensor):
-        return self.model.predict(input_tensor, verbose=None)
-
-    @property
-    def get_model(self):
-        return self.model
-
-    @staticmethod
-    def set_client_name(model_client_name: str):
-        def _set_name(target):
-            target.client_name = model_client_name
-            return target
-
-        return _set_name
-
-
 class EncoderBlock:
     def __init__(
         self,
@@ -340,8 +265,99 @@ class DSPP(tf.keras.layers.Layer):
         return output
 
 
-@Analyzer.set_client_name('unet')
-class UnetAnalyzer(Analyzer):
+_registered_analyzers = {}
+
+
+class AnalyzeModel(ABC):
+    """
+    Абстрактный класс-обертка для использования tensorflow.keras моделей
+
+    Веса для модели можно загрузить из удаленной или локальной директории:
+        - Локальная загрузка:
+            - weights_file: название .h5-файла или 'auto',
+            - weights_dir: абсолютный путь к директории с файлами весов,
+            - weights_destination: 'local',
+            - google_drive_credits_path: None.
+        - Удаленная загрузка:
+            - weights_file: название .h5-файла или 'auto',
+            - weights_dir: id Google Drive директории,
+            - weights_destination: 'remote',
+            - google_drive_credits_path: путь к json-файлу для доступа к удаленной Google Drive директории.
+        - Пустая модель для обучения с нуля (*можно просто не задавать аргументы*):
+            - weights_file: None,
+            - weights_dir: None,
+            - weights_destination: None,
+            - google_drive_credits_path: None.
+
+    :param input_shape: размер входного изображения
+    :param weights_file: название файла с весами или 'auto' (будет использован последный созданный для этой модели файл весов)
+    :param weights_dir: абсолютный путь/id к директории с сохраненными весами
+    :param weights_destination: 'local' - использовать веса из локальной директории, 'remote' - использовать веса из удаленной Google Drive директории
+    :param google_drive_credentials_path: путь к json-файлу для доступа к удаленной Google Drive директории
+    """
+    tf_model: tf.keras.models.Model = None
+    client_name: str = None
+
+    @abc.abstractmethod
+    def build_model(self, input_shape) -> tf.keras.models.Model:
+        """
+        Метод инициализирующий модель, должен возвращять экземпляр класса tf.keras.models.Model
+
+        Важно: *при автоматических загрузке и сохранении весов учитывается не поле client_name, а tf_model.name которое
+        задается при инициализации tf.keras.models.Model(args, kwargs, name=your_model_name), поэтому этот параметр
+        должен быть задан.*
+        """
+        raise NotImplementedError()
+
+    def __init__(
+        self,
+        input_shape: tuple[int, int, int] = (256, 256, 3),
+        weights_file: Literal['auto'] | str = None,
+        weights_dir: str = None,
+        weights_destination: Literal['local', 'remote'] = None,
+        google_drive_credentials_path: str = None
+    ):
+        self.tf_model = self.build_model(input_shape)
+
+        if all((weights_file, weights_dir, weights_destination)) is not None:
+            if weights_file == "auto":
+                if weights_destination == "local":
+                    weights_path = get_local_weights_path(self.tf_model.name, weights_dir)
+
+                    self.tf_model.load_weights(weights_path)
+
+                if weights_destination == "remote":
+                    weights_path = get_remote_weights_path(self.tf_model.name, weights_dir, google_drive_credentials_path)
+
+                    self.tf_model.load_weights(weights_path)
+                    os.remove(weights_path)  # удаляем временный файл весов после загрузки
+            else:
+                self.tf_model.load_weights(os.path.join(weights_dir, weights_file))
+
+    def __call__(self, input_tensor: tf.Tensor):
+        return self.tf_model.predict(input_tensor, verbose=None)
+
+    def get_tf_model(self):
+        return self.tf_model
+
+    @staticmethod
+    def register_model(model_client_name: str):
+        """
+        Только модели к которым был применен данный декоратор будут доступны для web-клиента.
+
+        :param model_client_name: название модели на стороне клиента (приходит в json-файле при запросе и отображается
+        в меню выбора модели для анализа)
+        """
+        def _registration(target):
+            target.client_name = model_client_name
+            _registered_analyzers[model_client_name] = target
+            return target
+
+        return _registration
+
+
+@AnalyzeModel.register_model('U-Net')
+class Unet(AnalyzeModel):
     def build_model(self, input_shape):
         model_input = tf.keras.layers.Input(input_shape)
 
@@ -363,8 +379,8 @@ class UnetAnalyzer(Analyzer):
         return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='Unet_orig')
 
 
-@Analyzer.set_client_name('unet_plus_plus')
-class UnetPlusPlusAnalyzer(Analyzer):
+@AnalyzeModel.register_model('Unet++')
+class UnetPlusPlus(AnalyzeModel):
     def build_model(self, input_shape):
         model_input = tf.keras.layers.Input(input_shape)
 
@@ -387,8 +403,7 @@ class UnetPlusPlusAnalyzer(Analyzer):
         conv_3_1 = DecoderBlock(128, concatenate_with=[conv_3_0])(conv_4_0)  # 16x16 -> 32x32
         conv_2_2 = DecoderBlock(64, concatenate_with=[conv_2_0, conv_2_1])(conv_3_1)  # 32x32 -> 64x64
         conv_1_3 = DecoderBlock(32, concatenate_with=[conv_1_0, conv_1_1, conv_1_2])(conv_2_2)  # 64x64 -> 128x128
-        conv_0_4 = DecoderBlock(16, concatenate_with=[conv_0_0, conv_0_1, conv_0_2, conv_0_3])(
-            conv_1_3)  # 128x128 -> 256x256
+        conv_0_4 = DecoderBlock(16, concatenate_with=[conv_0_0, conv_0_1, conv_0_2, conv_0_3])(conv_1_3)  # 128x128 -> 256x256
 
         model_output = tf.keras.layers.Conv2D(1, (1, 1))(conv_0_4)
         model_output = tf.keras.layers.Activation('sigmoid')(model_output)
@@ -396,14 +411,13 @@ class UnetPlusPlusAnalyzer(Analyzer):
         return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='Unet_plus_plus')
 
 
-@Analyzer.set_client_name('deeplab_v3_plus')
-class DeeplabV3plusAnalyzer(Analyzer):
+@AnalyzeModel.register_model('DeepLabV3+')
+class DeeplabV3plus(AnalyzeModel):
     """
     :param mode: режим сверстки:
         'original' - стандартный сверточный блок Conv + BN + ReLU,
-        'double' - двойной сверточный блок [Conv + BN + ReLU]x2
-
-    *В случае двойной сверстки используется такое же количество фильтров, просто они распределенны на 2 блока*
+        'double' - двойной сверточный блок [Conv + BN + ReLU]x2.
+        *В случае двойной сверстки используется такое же количество фильтров, просто они распределенны на 2 блока*
     """
     mode = None
 
@@ -452,31 +466,57 @@ class DeeplabV3plusAnalyzer(Analyzer):
         return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='DeepLabV3_plus')
 
 
-class AnalyzersManager:
+# @AnalyzeModel.register_model('ResNet U-net')
+class ResNetBackboneUnet(AnalyzeModel):
+    def build_model(self, input_shape) -> tf.keras.models.Model:
+        model_input = tf.keras.layers.Input(input_shape)
+        backbone = tf.keras.applications.ResNet50(input_shape=input_shape, include_top=False, input_tensor=model_input)
+
+        features_layers = ['conv1_relu', 'conv2_block3_out', 'conv3_block4_out', 'conv4_block6_out']
+
+        conv_1 = backbone.get_layer(features_layers[0]).output
+        conv_2 = backbone.get_layer(features_layers[1]).output
+        conv_3 = backbone.get_layer(features_layers[2]).output
+        conv_4 = backbone.get_layer(features_layers[3]).output
+
+        conv_5 = backbone.output
+
+        conv_6 = DecoderBlock(128, concatenate_with=[conv_4])(conv_5)  # 16x16 -> 32x32
+        conv_7 = DecoderBlock(64, concatenate_with=[conv_3])(conv_6)  # 32x32 -> 64x64
+        conv_8 = DecoderBlock(32, concatenate_with=[conv_2])(conv_7)  # 64x64 -> 128x128
+        conv_9 = DecoderBlock(16, concatenate_with=[conv_1])(conv_8)  # 128x128 -> 256x256
+
+        model_output = tf.keras.layers.Conv2D(1, (1, 1))(conv_9)
+        model_output = tf.keras.layers.Activation('sigmoid')(model_output)
+
+        return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='Unet_orig_resnet')
+
+
+class Analyzer:
     """
-    Класс упрощающий инициализацию и доступ к моделям для анализа картографических изображений
+    Класс реализующий инициализацию моделей для анализа картографических изображений и предоставляющий доступ к ним.
 
-    :param selected_models: используемые архитектуры моделей
-    :param analyzers_kwargs: параметры которые будут использованны при инициализации каждой модели, *подробнее смотреть в models.models.Analyzer*
+    Доступ к моделям возможен с помощью индекс оператора через название модели: *analyzer = manager['model_name']*
+
+    :param selected_models: инициализируемые модели
+    :param analyzers_kwargs: параметры которые будут использованны при инициализации каждой модели, *подробнее смотреть в models.models.AnalyzeModel*
     """
-    _analyzers = {}
+    _analyzers = None
 
-    def __init__(self, selected_models: list[str], **analyzers_kwargs):
-        for model in selected_models:
-            print(f"Инициализация {model}...")
+    def __init__(self, selected_models: list[str], **models_kwargs):
+        self._analyzers = {}
 
-            if model == 'unet':
-                analyzer = UnetAnalyzer(**analyzers_kwargs)
-                self._analyzers[analyzer.client_name] = analyzer
-            if model == 'unet_plus_plus':
-                analyzer = UnetPlusPlusAnalyzer(**analyzers_kwargs)
-                self._analyzers[analyzer.client_name] = analyzer
-            if model == 'deeplab_v3_plus':
-                analyzer = DeeplabV3plusAnalyzer(**analyzers_kwargs)
-                self._analyzers[analyzer.client_name] = analyzer
+        for model_name, model in _registered_analyzers.items():
+            if model_name in selected_models:
+                print(f"Инициализация {model_name}...")
+
+                self._analyzers[model_name] = model(**models_kwargs)
 
     def __getitem__(self, item):
         if item in self._analyzers:
             return self._analyzers[item]
         else:
-            return None
+            raise ValueError("Client Error: данная модель недоступна")
+
+    def get_models_names(self):
+        return list(self._analyzers.keys())

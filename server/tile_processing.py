@@ -10,11 +10,12 @@ from PIL import Image
 from io import BytesIO
 from skimage import restoration, measure
 
+
 TILES_SERVER = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
 
 TILE_SIZE = 256  # Ширина и высота тайла
 PADDING_SIZE = 16  # Размер отступа при подаче для анализа
-BIN_TRESHOLD = .5  # Порог используемый при бинаризации выхода модели (матрица значений от 0 до 1)
+BIN_TRESHOLD = .5  # Порог используемый при бинаризации выхода модели (вектор двумерных тензоров значений от 0 до 1)
 
 MIN_POLYGON_AREA = (TILE_SIZE * 0.05) * (TILE_SIZE * 0.05)  # Минимальная площадь полигона (5% тайла - by default)
 DECREASED_PADDING_SIZE = int(PADDING_SIZE * (TILE_SIZE / (TILE_SIZE + PADDING_SIZE * 2)))
@@ -22,6 +23,112 @@ DECREASED_PADDING_SIZE = int(PADDING_SIZE * (TILE_SIZE / (TILE_SIZE + PADDING_SI
 resize = tf.keras.layers.Resizing(TILE_SIZE, TILE_SIZE)
 rescale = tf.keras.layers.Rescaling(1. / 255.)
 crop = tf.keras.layers.CenterCrop(TILE_SIZE - DECREASED_PADDING_SIZE * 2, TILE_SIZE - DECREASED_PADDING_SIZE * 2)
+
+
+def _uniq_coords(coords: list[dict]):
+    """
+    Убирает дубликаты из списка координат
+    """
+    result = []
+
+    for coord in coords:
+        if coord not in result:
+            result.append(coord)
+
+    return result
+
+
+def _check_coords(coords: list[dict]) -> tuple[int, int] | None:
+    """
+    Проверяет присланные web-клиентом координаты тайлов на корректность и возвращает высоту и ширину исследуемой области
+
+    Координаты должны соответствовать следуюшим требованиям:
+        - координаты должны иметь одно и то же значение z
+        - координаты должны быть непрерывны
+        - координаты должны соответствовать прямоугольной области
+
+    *Да, вставлять в одну функцию такой разный функционал неправильно, но в данной ситуации это позволяет делать меньше
+    вычислений*
+
+    :return: ширину и высоту исследуемой области в случае если координаты корректны, в противном случае - None
+    """
+
+    # TODO ускорить numpy`ем
+
+    xx = [i['x'] for i in coords]
+    yy = [i['y'] for i in coords]
+
+    width = max(xx) - min(xx) + 1
+    height = max(yy) - min(yy) + 1
+
+    if len(coords) != width*height:
+        return None
+
+    z = coords[0]['z']
+    for coord in coords:
+        if coord['z'] != z:
+            return None
+
+    for y in yy:
+        for x in xx:
+            if {'x': x, 'y': y, 'z': z} not in coords:
+                return None
+
+    return width, height
+
+
+class TilesDownloader:
+    _tiles_queue = {}
+    max_retries = None
+
+    def __init__(self, max_retries: int = 5):
+        self.max_retries = max_retries
+
+    async def _http_worker(self, coords, session):
+        # try
+        async with session.get(url=TILES_SERVER.format(**coords)) as response:
+            self._tiles_queue[tuple(coords.values())] = np.asarray(Image.open(BytesIO(await response.read())), dtype=np.uint8)
+
+    async def _run_workers(self, tiles_coords):
+        async with aiohttp.ClientSession() as session:
+            await asyncio.gather(*[self._http_worker(cords, session) for cords in tiles_coords])
+
+    def get_tiles(self, tiles_coords: list[dict]) -> (np.ndarray, int, int):
+        tiles_coords = _uniq_coords(tiles_coords)
+
+        coords_data = _check_coords(tiles_coords)
+
+        if coords_data is None:
+            raise ValueError("Client Error: неправильные координаты в запросе, попробуйте выделить область ещё раз")
+
+        width = coords_data[0]
+        height = coords_data[1]
+
+        self._tiles_queue = {}
+        retries = 0
+
+        while retries < self.max_retries:
+            try:
+                asyncio.run(self._run_workers(tiles_coords))
+
+                # при загрузе большего количества тайлов, некоторые могут "потеряться"
+                if len(self._tiles_queue) != len(tiles_coords):
+                    raise ConnectionError()
+                else:
+                    # https://stackoverflow.com/questions/37111798/how-to-sort-a-list-of-x-y-coordinates
+                    tiles = sorted(self._tiles_queue.items(), key=lambda i: (i[0][1], i[0][0]))
+                    tiles = [i[1] for i in tiles]
+
+                    self._tiles_queue = {}
+
+                    return np.array(tiles), width, height
+            except ConnectionError:
+                self._tiles_queue = {}
+                retries += 1
+
+                continue
+
+        raise ConnectionError()
 
 
 # https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
@@ -58,35 +165,6 @@ def _pix_coords_to_latlngs(x: array.array, y: array.array, start_tile_coords: di
     return np.dstack((lat, lng))
 
 
-# TODO сделать загрузку как отдельный класс
-def load_tiles(tiles_cords: list) -> (np.ndarray, int, int):
-    xx = [i['x'] for i in tiles_cords]
-    yy = [i['y'] for i in tiles_cords]
-
-    width = max(xx) - min(xx) + 1
-    height = max(yy) - min(yy) + 1
-
-    tiles_queue = {}
-
-    async def _http_worker(cords, session):
-        # try
-        async with session.get(url=TILES_SERVER.format(**cords)) as response:
-            tiles_queue[tuple(cords.values())] = np.asarray(Image.open(BytesIO(await response.read())), dtype=np.uint8)
-
-    async def _main():
-        async with aiohttp.ClientSession() as session:
-            await asyncio.gather(
-                *[_http_worker(cords, session) for cords in tiles_cords]
-            )
-
-    asyncio.run(_main())
-
-    # https://stackoverflow.com/questions/37111798/how-to-sort-a-list-of-x-y-coordinates
-    tiles_queue = sorted(tiles_queue.items(), key=lambda i: (i[0][1], i[0][0]))
-
-    return np.array([i[1] for i in tiles_queue]), width, height
-
-
 def preprocess_tiles(tiles_data: np.ndarray, width, height) -> tf.Tensor:
     # для того, чтобы модель лучше обрабатывала пиксели по краям тайлов, необходимо нарезать их с захватом контекста с
     # соседних тайлов
@@ -114,9 +192,8 @@ def postprocess_tiles(
         height: int,
         start_tile_coords: dict,
         analyze_area_polygon_dots: list[dict]
-) -> dict:
-    stacked_masks = np.vstack(
-        [np.hstack([out_batch[i * width + j] for j in np.arange(width)]) for i in np.arange(height)])
+) -> list:
+    stacked_masks = np.vstack([np.hstack([out_batch[i * width + j] for j in np.arange(width)]) for i in np.arange(height)])
 
     denoised_masks = restoration.denoise_nl_means(
         stacked_masks.reshape((stacked_masks.shape[0], stacked_masks.shape[1])),
@@ -180,4 +257,4 @@ def postprocess_tiles(
                             "area": float(geom_area)
                         })
 
-    return {"polygons": polygons, "success": True, "message:": None}
+    return polygons

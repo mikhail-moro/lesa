@@ -11,4 +11,4 @@ BENCHMARK_MASKS_DIR_PATH = os.path.join(_PACKAGE_PATH, "benchmark_data", "masks"
 
 
 from .utils import remove_models_temps
-from .models import AnalyzersManager
+from .models import Analyzer, AnalyzeModel

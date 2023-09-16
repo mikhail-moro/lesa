@@ -1,62 +1,80 @@
+import typing
 import traceback
 
+if typing.TYPE_CHECKING:
+    from ..models import Analyzer
+
 from flask import Flask, render_template, request, jsonify
-from .tile_processing import preprocess_tiles, postprocess_tiles, load_tiles
+from .tile_processing import preprocess_tiles, postprocess_tiles, TilesDownloader
+from .utils import Logger
+from . import STATIC_DIR_PATH, TEMPLATE_DIR_PATH
 
 
-app = Flask(__name__)
+class Server(Flask):
+    """
+    Класс-обертка Flask-приложения
 
+    :param analyzer: класс реализующий функционал анализа входящих тайлов
+    :param logs_file_path: путь к .txt файлу где будут писаться логи сервера
+    :param tiles_download_max_replies: во время асинхронной загрузки тайлов с сервера они могут загрузиться не полностью, параметр устанавливает сколько раз повторять запрос
+    """
+    def __init__(
+        self,
+        *flask_args,
+        analyzer: 'Analyzer',
+        logs_file_path: str,
+        tiles_download_max_replies: int = 5,
+        **flask_kwargs
+    ):
+        super().__init__(*flask_args, **flask_kwargs, static_folder=STATIC_DIR_PATH, template_folder=TEMPLATE_DIR_PATH)
 
-@app.route('/')
-def main():
-    return render_template('index.html')
+        logger = Logger(logs_file_path)
+        downloader = TilesDownloader(tiles_download_max_replies)
 
+        @self.route('/')
+        def main():
+            return render_template('index.html', models=analyzer.get_models_names())
 
-@app.route('/analyze', methods=['POST'])
-def analyze():
-    data = request.get_json()
+        @self.route('/analyze', methods=['POST'])
+        def analyze():
+            data = request.get_json()
 
-    try:
-        tiles_coords = data["tiles_coords"]
-        start_tiles_coords = data["tiles_coords"][0]
-        model_name = data["selected_model"]
-        analyze_area_polygon = data["analyze_area_polygon"]
+            tiles_coords = data["tiles_coords"]
+            start_tiles_coords = data["tiles_coords"][0]
+            model_name = data["selected_model"]
+            analyze_area_polygon = data["analyze_area_polygon"]
 
-        tiles, width, height = load_tiles(tiles_coords)
+            try:
+                tiles, width, height = downloader.get_tiles(tiles_coords)
 
-        input_batch = preprocess_tiles(tiles, width, height)
-        out_batch = tiles_analyzer[model_name](input_batch)
+                input_batch = preprocess_tiles(tiles, width, height)
+                out_batch = analyzer[model_name](input_batch)
 
-        if out_batch is not None:
-            json = postprocess_tiles(
-                out_batch=out_batch,
-                width=width,
-                height=height,
-                start_tile_coords=start_tiles_coords,
-                analyze_area_polygon_dots=analyze_area_polygon
-            )
+                polygons = postprocess_tiles(
+                    out_batch=out_batch,
+                    width=width,
+                    height=height,
+                    start_tile_coords=start_tiles_coords,
+                    analyze_area_polygon_dots=analyze_area_polygon
+                )
 
-            return jsonify(json)
-        else:
-            return jsonify({"polygons": None, "success": False, "message:": "Данная модель недоступна"})
-    except Warning as wn:
-        print(wn)
-        error_logger.log(log_type='Warning', request=str(data), traceback=traceback.format_exc())
-    except Exception as ex:
-        print(ex)
-        error_logger.log(log_type='Exception', request=str(data), traceback=traceback.format_exc())
+                return jsonify({"polygons": polygons, "success": True, "message": None})
 
-        return 'Not Found', 404
+            except ValueError as ve:
+                if str(ve).startswith("Client Error"):
+                    return jsonify({"polygons": None, "success": False, "message": str(ve)})
+                else:
+                    print(ve)
+                    logger.log(log_type='Exception', request=str(data), traceback=traceback.format_exc())
 
+                    return 'Not Found', 404
 
-def run_server(host: str, port: int, analyzer, logger):
-    """Запуск Flask-приложения"""
-    global tiles_analyzer
-    global error_logger
+            except Warning as wn:
+                print(wn)
+                logger.log(log_type='Warning', request=str(data), traceback=traceback.format_exc())
 
-    tiles_analyzer = analyzer
-    error_logger = logger
+            except Exception as ex:
+                print(ex)
+                logger.log(log_type='Exception', request=str(data), traceback=traceback.format_exc())
 
-    print("Запуск Flask-приложения...")
-
-    app.run(host=host, port=port)
+                return 'Not Found', 404
