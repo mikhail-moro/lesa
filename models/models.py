@@ -143,6 +143,7 @@ class SingleDecoderBlock:
         )
         self.batch_norm_1 = tf.keras.layers.BatchNormalization()
         self.activation_1 = tf.keras.layers.ReLU()
+
         self.weights_concat = tf.keras.layers.Concatenate()
 
         self.conv = tf.keras.layers.Conv2D(
@@ -526,12 +527,12 @@ class DeeplabV3plus(AnalyzeModel):
 
 
 # @AnalyzeModel.register_model('ResNet U-net')
-class ResNetBackboneUnet(AnalyzeModel):
+class EfficientBackboneUnet(AnalyzeModel):
     def build_model(self, input_shape) -> tf.keras.models.Model:
         model_input = tf.keras.layers.Input(input_shape)
         backbone = tf.keras.applications.ResNet50(input_shape=input_shape, include_top=False, input_tensor=model_input)
 
-        features_layers = ['conv1_relu', 'conv2_block3_out', 'conv3_block4_out', 'conv4_block6_out']
+        features_layers = ['block2a_expand_activation', 'block3a_expand_activation', 'block4a_expand_activation', 'block6a_expand_activation']
 
         conv_1 = backbone.get_layer(features_layers[0]).output  # 256x256 -> 128xx128
         conv_2 = backbone.get_layer(features_layers[1]).output  # 128x128 -> 64x64
@@ -548,7 +549,7 @@ class ResNetBackboneUnet(AnalyzeModel):
         model_output = tf.keras.layers.Conv2D(1, (1, 1))(conv_10)
         model_output = tf.keras.layers.Activation('sigmoid')(model_output)
 
-        return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='Unet_orig_resnet')
+        return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='Unet_orig_effnet')
 
 
 class Analyzer:
