@@ -329,7 +329,7 @@ class AnalyzeModel(ABC):
     ):
         self.tf_model = self.build_model(input_shape)
 
-        if all((weights_file, weights_dir, weights_destination)) is not None or SCRIPT_RUN_SEPARATE:
+        if not (SCRIPT_RUN_SEPARATE or all((weights_file, weights_dir, weights_destination)) is None):
             if weights_file == "auto":
                 if weights_destination == "local":
                     weights_path = get_local_weights_path(self.tf_model.name, weights_dir)
