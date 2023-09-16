@@ -530,7 +530,7 @@ class DeeplabV3plus(AnalyzeModel):
 class EfficientBackboneUnet(AnalyzeModel):
     def build_model(self, input_shape) -> tf.keras.models.Model:
         model_input = tf.keras.layers.Input(input_shape)
-        backbone = tf.keras.applications.ResNet50(input_shape=input_shape, include_top=False, input_tensor=model_input)
+        backbone = tf.keras.applications.efficientnet.EfficientNetB3(input_shape=input_shape, include_top=False, input_tensor=model_input)
 
         features_layers = ['block2a_expand_activation', 'block3a_expand_activation', 'block4a_expand_activation', 'block6a_expand_activation']
 
