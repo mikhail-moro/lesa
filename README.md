@@ -36,7 +36,7 @@
 <p align="center"><img src="https://github.com/mikhail-moro/res/blob/main/sample_2.png"><br>Рис. 3</p>
 
 -----
-* Использовалась версия DeepLabV3+ с ResNet50 енкодером
+ ** Использовалась версия DeepLabV3+ с ResNet50 енкодером
  
 1. https://arxiv.org/abs/1505.04597
 2. https://arxiv.org/abs/1807.10165
