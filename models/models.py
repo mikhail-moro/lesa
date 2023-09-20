@@ -361,7 +361,7 @@ class ResnetDeeplabV3plus(AnalyzeModel):
         model_output = tf.keras.layers.Conv2D(1, kernel_size=(1, 1), padding="same")(x)
         model_output = tf.keras.layers.Activation('sigmoid')(model_output)
 
-        return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='ResNet50 DeepLabV3_plus')
+        return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='ResNet50_DeepLabV3_plus')
 
 
 #  @AnalyzeModel.register_model('EfficientNet-DeepLabV3+')
@@ -398,7 +398,7 @@ class EffnetDeeplabV3plus(AnalyzeModel):
         model_output = tf.keras.layers.Conv2D(1, kernel_size=(1, 1), padding="same")(x)
         model_output = tf.keras.layers.Activation('sigmoid')(model_output)
 
-        return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='EfficientNetB3 DeepLabV3_plus')
+        return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='EfficientNetB3_DeepLabV3_plus')
 
 
 class Analyzer:
