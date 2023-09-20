@@ -1,0 +1,60 @@
+Exception log 2023-09-13 20:32:41.185416:
+    Request: 
+        {'tiles_coords': [{'x': 79963, 'y': 46000, 'z': 17}, {'x': 79963, 'y': 46001, 'z': 17}, {'x': 79963, 'y': 46002, 'z': 17}, {'x': 79964, 'y': 46000, 'z': 17}, {'x': 79964, 'y': 46001, 'z': 17}, {'x': 79964, 'y': 46002, 'z': 17}, {'x': 79965, 'y': 46000, 'z': 17}, {'x': 79965, 'y': 46001, 'z': 17}, {'x': 79965, 'y': 46002, 'z': 17}], 'analyze_area_polygon': [{'lat': 47.184914751441696, 'lng': 39.625014066696174}, {'lat': 47.18794071518491, 'lng': 39.625014066696174}, {'lat': 47.18794071518491, 'lng': 39.63044285774232}, {'lat': 47.184914751441696, 'lng': 39.63044285774232}], 'selected_model': 'unet'}
+    Traceback:
+        Traceback (most recent call last):
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\server.py", line 29, in analyze
+    tiles, width, height = tiles_downloader.get_tiles(tiles_coords)
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\tile_processing.py", line 58, in get_tiles
+    asyncio.run(self._run_workers(tiles_coords))
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\asyncio\runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\asyncio\base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\tile_processing.py", line 45, in _run_workers
+    await asyncio.gather(*[self._http_worker(cords) for cords in tiles_coords])
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\tile_processing.py", line 41, in _http_worker
+    async with self._session.get(url=TILES_SERVER.format(**coords)) as response:
+AttributeError: 'NoneType' object has no attribute 'get'
+
+
+Exception log 2023-09-13 20:36:41.951809:
+    Request: 
+        {'tiles_coords': [{'x': 79963, 'y': 46001, 'z': 17}, {'x': 79963, 'y': 46002, 'z': 17}, {'x': 79964, 'y': 46001, 'z': 17}, {'x': 79964, 'y': 46002, 'z': 17}, {'x': 79965, 'y': 46001, 'z': 17}, {'x': 79965, 'y': 46002, 'z': 17}], 'analyze_area_polygon': [{'lat': 47.18479808432583, 'lng': 39.62566852569581}, {'lat': 47.18770739399783, 'lng': 39.62566852569581}, {'lat': 47.18770739399783, 'lng': 39.63062524795533}, {'lat': 47.18479808432583, 'lng': 39.63062524795533}], 'selected_model': 'unet'}
+    Traceback:
+        Traceback (most recent call last):
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\server.py", line 29, in analyze
+    tiles, width, height = tiles_downloader.get_tiles(tiles_coords)
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\tile_processing.py", line 55, in get_tiles
+    self._session = aiohttp.ClientSession()
+  File "C:\Users\yahry\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\aiohttp\client.py", line 228, in __init__
+    loop = get_running_loop(loop)
+  File "C:\Users\yahry\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\aiohttp\helpers.py", line 288, in get_running_loop
+    loop = asyncio.get_event_loop()
+  File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\lib\asyncio\events.py", line 656, in get_event_loop
+    raise RuntimeError('There is no current event loop in thread %r.'
+RuntimeError: There is no current event loop in thread 'Thread-3 (process_request_thread)'.
+
+
+
+Exception log 2023-09-20 17:25:01.728602:
+    Request:
+        {'tiles_coords': [{'x': 80006, 'y': 45978, 'z': 17}, {'x': 80006, 'y': 45979, 'z': 17}, {'x': 80007, 'y': 45978, 'z': 17}, {'x': 80007, 'y': 45979, 'z': 17}, {'x': 80008, 'y': 45978, 'z': 17}, {'x': 80008, 'y': 45979, 'z': 17}], 'analyze_area_polygon': [{'lat': 47.22734997749309, 'lng': 39.744329452514656}, {'lat': 47.230198670568335, 'lng': 39.744329452514656}, {'lat': 47.230198670568335, 'lng': 39.75012302398682}, {'lat': 47.22734997749309, 'lng': 39.75012302398682}], 'selected_model': 'U-Net'}
+    Traceback:
+        Traceback (most recent call last):
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\server.py", line 53, in analyze
+    polygons = postprocess_tiles(
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\tile_processing.py", line 228, in postprocess_tiles
+    polygon = analyze_area_polygon & polygon
+  File "C:\Users\yahry\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\shapely\geometry\base.py", line 189, in __and__
+    return self.intersection(other)
+  File "C:\Users\yahry\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\shapely\geometry\base.py", line 582, in intersection
+    return shapely.intersection(self, other, grid_size=grid_size)
+  File "C:\Users\yahry\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\shapely\decorators.py", line 77, in wrapped
+    return func(*args, **kwargs)
+  File "C:\Users\yahry\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\LocalCache\local-packages\Python310\site-packages\shapely\set_operations.py", line 133, in intersection
+    return lib.intersection(a, b, **kwargs)
+shapely.errors.GEOSException: TopologyException: Input geom 1 is invalid: Self-intersection at 631.7397260273973 504.5
+
+
+    

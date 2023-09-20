@@ -1,0 +1,127 @@
+Exception log 2023-09-15 16:23:38.702218:
+    Request: 
+        {'analyze_area_polygon': [{'lat': 47.18457204105923, 'lng': 39.625239372253425}, {'lat': 47.187889676262884, 'lng': 39.625239372253425}, {'lat': 47.187889676262884, 'lng': 39.63041067123414}, {'lat': 47.18457204105923, 'lng': 39.63041067123414}], 'selected_model': 'deeplab_v3_plus', 'tiles_coords': [{'x': 79963, 'y': 46000, 'z': 17}, {'x': 79963, 'y': 46001, 'z': 17}, {'x': 79963, 'y': 46002, 'z': 17}, {'x': 79964, 'y': 46000, 'z': 17}, {'x': 79964, 'y': 46001, 'z': 17}, {'x': 79964, 'y': 46002, 'z': 17}]}
+    Traceback:
+        Traceback (most recent call last):
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\server.py", line 31, in analyze
+    out_batch = analyzer[model_name](input_batch)
+TypeError: AnalyzersManagerMock.__init__.<locals>.<lambda>() takes 0 positional arguments but 1 was given
+
+
+Exception log 2023-09-15 16:27:45.308940:
+    Request: 
+        {'analyze_area_polygon': [{'lat': 47.18457204105923, 'lng': 39.625239372253425}, {'lat': 47.187889676262884, 'lng': 39.625239372253425}, {'lat': 47.187889676262884, 'lng': 39.63041067123414}, {'lat': 47.18457204105923, 'lng': 39.63041067123414}], 'selected_model': 'deeplab_v3_plus', 'tiles_coords': [{'x': 79963, 'y': 46000, 'z': 17}, {'x': 79963, 'y': 46001, 'z': 17}, {'x': 79963, 'y': 46002, 'z': 17}, {'x': 79964, 'y': 46000, 'z': 17}, {'x': 79964, 'y': 46001, 'z': 17}, {'x': 79964, 'y': 46002, 'z': 17}]}
+    Traceback:
+        Traceback (most recent call last):
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\server.py", line 31, in analyze
+    out_batch = analyzer[model_name](input_batch)
+TypeError: AnalyzersManagerMock.__init__.<locals>.<lambda>() takes 0 positional arguments but 1 was given
+
+
+Exception log 2023-09-15 16:27:57.850252:
+    Request: 
+        {'analyze_area_polygon': [{'lat': 47.18457204105923, 'lng': 39.625239372253425}, {'lat': 47.187889676262884, 'lng': 39.625239372253425}, {'lat': 47.187889676262884, 'lng': 39.63041067123414}, {'lat': 47.18457204105923, 'lng': 39.63041067123414}], 'selected_model': 'deeplab_v3_plus', 'tiles_coords': [{'x': 79963, 'y': 46000, 'z': 17}, {'x': 79963, 'y': 46001, 'z': 17}, {'x': 79963, 'y': 46002, 'z': 17}, {'x': 79964, 'y': 46000, 'z': 17}, {'x': 79964, 'y': 46001, 'z': 17}, {'x': 79964, 'y': 46002, 'z': 17}]}
+    Traceback:
+        Traceback (most recent call last):
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\server.py", line 31, in analyze
+    out_batch = analyzer[model_name](input_batch)
+TypeError: AnalyzersManagerMock.__init__.<locals>.<lambda>() takes 0 positional arguments but 1 was given
+
+
+Exception log 2023-09-15 21:02:23.150864:
+    Request: 
+        {'analyze_area_polygon': [{'lat': 47.18457204105923, 'lng': 39.625239372253425}, {'lat': 47.187889676262884, 'lng': 39.625239372253425}, {'lat': 47.187889676262884, 'lng': 39.63041067123414}, {'lat': 47.18457204105923, 'lng': 39.63041067123414}], 'selected_model': 'deeplab_v3_plus', 'tiles_coords': [{'x': 79963, 'y': 46000, 'z': 17}, {'x': 79963, 'y': 46001, 'z': 17}, {'x': 79963, 'y': 46002, 'z': 17}, {'x': 79964, 'y': 46000, 'z': 17}, {'x': 79964, 'y': 46001, 'z': 17}, {'x': 79964, 'y': 46002, 'z': 17}]}
+    Traceback:
+        Traceback (most recent call last):
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\server.py", line 48, in analyze
+    tiles, width, height = downloader.get_tiles(tiles_coords)
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\tile_processing.py", line 98, in get_tiles
+    coords_data = _check_coords(tiles_coords)
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\tile_processing.py", line 60, in _check_coords
+    width = max(xx) - min(xx) + 1
+ValueError: max() arg is an empty sequence
+
+
+Exception log 2023-09-15 21:02:23.166967:
+    Request: 
+        {'analyze_area_polygon': [{'lat': 47.18457204105923, 'lng': 39.625239372253425}, {'lat': 47.187889676262884, 'lng': 39.625239372253425}, {'lat': 47.187889676262884, 'lng': 39.63041067123414}, {'lat': 47.18457204105923, 'lng': 39.63041067123414}], 'selected_model': 'deeplab_v3_plus', 'tiles_coords': [{'x': 79963, 'y': 46000, 'z': 17}, {'x': 79963, 'y': 46001, 'z': 17}, {'x': 79963, 'y': 46002, 'z': 17}, {'x': 79964, 'y': 46000, 'z': 17}, {'x': 79964, 'y': 46001, 'z': 17}, {'x': 79964, 'y': 46002, 'z': 17}]}
+    Traceback:
+        Traceback (most recent call last):
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\server.py", line 48, in analyze
+    tiles, width, height = downloader.get_tiles(tiles_coords)
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\tile_processing.py", line 98, in get_tiles
+    coords_data = _check_coords(tiles_coords)
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\tile_processing.py", line 60, in _check_coords
+    width = max(xx) - min(xx) + 1
+ValueError: max() arg is an empty sequence
+
+
+    
+Exception log 2023-09-15 21:11:25.281337:
+    Request: 
+        {'analyze_area_polygon': [{'lat': 47.18484912622057, 'lng': 39.62515354156495}, {'lat': 47.187714685300435, 'lng': 39.62515354156495}, {'lat': 47.187714685300435, 'lng': 39.6303677558899}, {'lat': 47.18484912622057, 'lng': 39.6303677558899}], 'selected_model': 'unet', 'tiles_coords': [{'x': 79963, 'y': 46001, 'z': 17}, {'x': 79963, 'y': 46002, 'z': 17}, {'x': 79964, 'y': 46001, 'z': 17}, {'x': 79964, 'y': 46002, 'z': 17}, {'x': 79964, 'y': 46003, 'z': 18}]}
+    Traceback:
+        Traceback (most recent call last):
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\server.py", line 47, in analyze
+    tiles, width, height = downloader.get_tiles(tiles_coords)
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\tile_processing.py", line 101, in get_tiles
+    raise ValueError()
+ValueError
+
+
+    
+Exception log 2023-09-15 21:40:31.903448:
+    Request: 
+        {'analyze_area_polygon': [{'lat': 47.1846230831713, 'lng': 39.62564706802368}, {'lat': 47.18803550162421, 'lng': 39.62564706802368}, {'lat': 47.18803550162421, 'lng': 39.63016390800477}, {'lat': 47.1846230831713, 'lng': 39.63016390800477}], 'selected_model': 'swin_r', 'tiles_coords': [{'x': 79963, 'y': 46000, 'z': 17}, {'x': 79963, 'y': 46001, 'z': 17}, {'x': 79963, 'y': 46002, 'z': 17}, {'x': 79964, 'y': 46000, 'z': 17}, {'x': 79964, 'y': 46001, 'z': 17}, {'x': 79964, 'y': 46002, 'z': 17}]}
+    Traceback:
+        Traceback (most recent call last):
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\server.py", line 50, in analyze
+    out_batch = analyzer[model_name](input_batch)
+TypeError: 'NoneType' object is not callable
+
+
+    
+Exception log 2023-09-15 21:46:01.000956:
+    Request: 
+        {'analyze_area_polygon': [{'lat': 47.1846230831713, 'lng': 39.62564706802368}, {'lat': 47.18803550162421, 'lng': 39.62564706802368}, {'lat': 47.18803550162421, 'lng': 39.63016390800477}, {'lat': 47.1846230831713, 'lng': 39.63016390800477}], 'selected_model': 'swin_r', 'tiles_coords': [{'x': 79963, 'y': 46000, 'z': 17}, {'x': 79963, 'y': 46001, 'z': 17}, {'x': 79963, 'y': 46002, 'z': 17}, {'x': 79964, 'y': 46000, 'z': 17}, {'x': 79964, 'y': 46001, 'z': 17}, {'x': 79964, 'y': 46002, 'z': 17}]}
+    Traceback:
+        Traceback (most recent call last):
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\server.py", line 50, in analyze
+    out_batch = analyzer[model_name](input_batch)
+TypeError: 'NoneType' object is not callable
+
+
+    
+Exception log 2023-09-15 21:50:01.975339:
+    Request: 
+        {'analyze_area_polygon': [{'lat': 47.1846230831713, 'lng': 39.62564706802368}, {'lat': 47.18803550162421, 'lng': 39.62564706802368}, {'lat': 47.18803550162421, 'lng': 39.63016390800477}, {'lat': 47.1846230831713, 'lng': 39.63016390800477}], 'selected_model': 'swin_r', 'tiles_coords': [{'x': 79963, 'y': 46000, 'z': 17}, {'x': 79963, 'y': 46001, 'z': 17}, {'x': 79963, 'y': 46002, 'z': 17}, {'x': 79964, 'y': 46000, 'z': 17}, {'x': 79964, 'y': 46001, 'z': 17}, {'x': 79964, 'y': 46002, 'z': 17}]}
+    Traceback:
+        Traceback (most recent call last):
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\server.py", line 50, in analyze
+    out_batch = analyzer[model_name](input_batch)
+TypeError: 'NoneType' object is not callable
+
+
+    
+Exception log 2023-09-15 21:50:40.698398:
+    Request: 
+        {'analyze_area_polygon': [{'lat': 47.1846230831713, 'lng': 39.62564706802368}, {'lat': 47.18803550162421, 'lng': 39.62564706802368}, {'lat': 47.18803550162421, 'lng': 39.63016390800477}, {'lat': 47.1846230831713, 'lng': 39.63016390800477}], 'selected_model': 'swin_r', 'tiles_coords': [{'x': 79963, 'y': 46000, 'z': 17}, {'x': 79963, 'y': 46001, 'z': 17}, {'x': 79963, 'y': 46002, 'z': 17}, {'x': 79964, 'y': 46000, 'z': 17}, {'x': 79964, 'y': 46001, 'z': 17}, {'x': 79964, 'y': 46002, 'z': 17}]}
+    Traceback:
+        Traceback (most recent call last):
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\server.py", line 50, in analyze
+    out_batch = analyzer[model_name](input_batch)
+TypeError: 'NoneType' object is not callable
+
+
+    
+Exception log 2023-09-15 21:53:11.929361:
+    Request: 
+        {'analyze_area_polygon': [{'lat': 47.1846230831713, 'lng': 39.62564706802368}, {'lat': 47.18803550162421, 'lng': 39.62564706802368}, {'lat': 47.18803550162421, 'lng': 39.63016390800477}, {'lat': 47.1846230831713, 'lng': 39.63016390800477}], 'selected_model': 'swin_r', 'tiles_coords': [{'x': 79963, 'y': 46000, 'z': 17}, {'x': 79963, 'y': 46001, 'z': 17}, {'x': 79963, 'y': 46002, 'z': 17}, {'x': 79964, 'y': 46000, 'z': 17}, {'x': 79964, 'y': 46001, 'z': 17}, {'x': 79964, 'y': 46002, 'z': 17}]}
+    Traceback:
+        Traceback (most recent call last):
+  File "C:\Users\yahry\PycharmProjects\lesa_niisva\lesa\server\server.py", line 51, in analyze
+    out_batch = model(input_batch)
+TypeError: 'NoneType' object is not callable
+
+
+    
