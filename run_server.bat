@@ -23,8 +23,8 @@
 @SET REMOTE_WEIGHTS_GOOGLE_DRIVE_CREDENTIALS=addition_data/google-api-credits.json
 
 :: Список используемых моделей в формате: -m model_name_1 -m model_name_2 ...
-:: На данный момент доступно 3 модели: 'unet', 'unet_plus_plus', 'deeplab_v3_plus'
-@SET MODELS=-m unet -m unet_plus_plus -m deeplab_v3_plus
+:: На данный момент доступно 3 модели: 'U-Net', 'Unet++', 'EfficientNet-DeepLabV3+'
+@SET MODELS=-m U-Net -m Unet++ -m EfficientNet-DeepLabV3+
 
 
 :: Путь к Python-интерпритатору

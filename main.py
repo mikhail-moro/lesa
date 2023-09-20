@@ -29,23 +29,23 @@ if __name__ == "__main__":
     selected_models = [''.join(i) for i in args.models]
 
     if args.weights_location == 'local':
-        analyzers_kwargs = {
+        analyzer_kwargs = {
             "weights_file": 'auto',
             "weights_dir": os.path.join(MAIN_PATH, args.local_weights_dir_path),
             "weights_destination": args.weights_location,
             "google_drive_credentials_path": None
         }
     elif args.weights_location == 'remote':
-        analyzers_kwargs = {
+        analyzer_kwargs = {
             "weights_file": 'auto',
             "weights_dir": args.remote_weights_dir_id,
             "weights_destination": args.weights_location,
             "google_drive_credentials_path": args.remote_weights_credentials_path
         }
     else:
-        analyzers_kwargs = {}
+        analyzer_kwargs = {}
 
-    analyzer = Analyzer(selected_models, **analyzers_kwargs)
+    analyzer = Analyzer(selected_models, **analyzer_kwargs)
 
     app = Server(
         import_name=__name__,

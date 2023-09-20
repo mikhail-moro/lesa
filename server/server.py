@@ -5,7 +5,7 @@ if typing.TYPE_CHECKING:
     from ..models import Analyzer
 
 from flask import Flask, render_template, request, jsonify
-from .tile_processing import preprocess_tiles, postprocess_tiles, TilesDownloader
+from .tile_processing import preprocess_tiles, postprocess_tiles, uniq_coords, check_coords, TilesDownloader
 from .utils import Logger
 from . import STATIC_DIR_PATH, TEMPLATE_DIR_PATH
 
@@ -40,12 +40,15 @@ class Server(Flask):
             data = request.get_json()
 
             tiles_coords = data["tiles_coords"]
-            start_tiles_coords = data["tiles_coords"][0]
+            start_tile_coords = data["tiles_coords"][0]
             model_name = data["selected_model"]
             analyze_area_polygon = data["analyze_area_polygon"]
 
             try:
-                tiles, width, height = downloader.get_tiles(tiles_coords)
+                tiles_coords = uniq_coords(tiles_coords)
+                width, height = check_coords(tiles_coords)
+
+                tiles = downloader.get_tiles(tiles_coords)
 
                 input_batch = preprocess_tiles(tiles, width, height)
                 out_batch = analyzer[model_name](input_batch)
@@ -54,7 +57,7 @@ class Server(Flask):
                     out_batch=out_batch,
                     width=width,
                     height=height,
-                    start_tile_coords=start_tiles_coords,
+                    start_tile_coords=start_tile_coords,
                     analyze_area_polygon_dots=analyze_area_polygon
                 )
 

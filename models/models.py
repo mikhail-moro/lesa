@@ -250,10 +250,10 @@ class AnalyzeModel(ABC):
             else:
                 self.tf_model.load_weights(os.path.join(weights_dir, weights_file))
 
-    def __call__(self, input_tensor: tf.Tensor):
+    def __call__(self, input_tensor: tf.Tensor) -> tf.Tensor:
         return self.tf_model.predict(input_tensor, verbose=None)
 
-    def get_tf_model(self):
+    def get_tf_model(self) -> tf.keras.models.Model:
         return self.tf_model
 
     @staticmethod
@@ -327,7 +327,8 @@ class UnetPlusPlus(AnalyzeModel):
         return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='Unet_plus_plus')
 
 
-@AnalyzeModel.register_model('ResNet-DeepLabV3+')
+# Модель ещё не обучена
+# @AnalyzeModel.register_model('ResNet-DeepLabV3+')
 class ResnetDeeplabV3plus(AnalyzeModel):
     def build_model(self, input_shape):
         model_input = tf.keras.layers.Input(input_shape)
@@ -340,7 +341,7 @@ class ResnetDeeplabV3plus(AnalyzeModel):
         )
 
         x = resnet50.get_layer("conv4_block6_2_relu").output
-        x = DSPP(mode=self.mode)(x)
+        x = DSPP()(x)
 
         input_a = tf.keras.layers.UpSampling2D(
             size=(input_shape[0] // 4 // x.shape[1], input_shape[1] // 4 // x.shape[2]),
@@ -364,19 +365,19 @@ class ResnetDeeplabV3plus(AnalyzeModel):
         return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='ResNet50_DeepLabV3_plus')
 
 
-#  @AnalyzeModel.register_model('EfficientNet-DeepLabV3+')
+@AnalyzeModel.register_model('EfficientNet-DeepLabV3+')
 class EffnetDeeplabV3plus(AnalyzeModel):
     def build_model(self, input_shape):
         model_input = tf.keras.layers.Input(input_shape)
 
-        resnet50 = tf.keras.applications.EfficientNetB3(
+        effnet_b3 = tf.keras.applications.EfficientNetB3(
             weights="imagenet",
             include_top=False,
             input_tensor=model_input,
             input_shape=input_shape
         )
 
-        x = resnet50.get_layer("block6a_expand_activation").output
+        x = effnet_b3.get_layer("block6a_expand_activation").output
         x = DSPP()(x)
 
         input_a = tf.keras.layers.UpSampling2D(
@@ -384,7 +385,7 @@ class EffnetDeeplabV3plus(AnalyzeModel):
             interpolation="bilinear"
         )(x)
 
-        input_b = resnet50.get_layer("block3a_expand_activation").output
+        input_b = effnet_b3.get_layer("block3a_expand_activation").output
         input_b = ConvBlock(num_filters=128, kernel_size=1)(input_b)
 
         x = tf.keras.layers.Concatenate(axis=-1)([input_a, input_b])
@@ -407,13 +408,16 @@ class Analyzer:
 
     Доступ к моделям возможен с помощью индекс оператора через название модели: *model = analyzer['model_name']*
 
-    :param selected_models: инициализируемые модели
+    :param selected_models: список моделей которые будут инициализированны, None - использовать все доступные модели
     :param analyzers_kwargs: параметры которые будут использованны при инициализации каждой модели, *подробнее смотреть в models.models.AnalyzeModel*
     """
     _analyzers = None
 
-    def __init__(self, selected_models: list[str], **models_kwargs):
+    def __init__(self, selected_models: list[str] = None, **models_kwargs):
         self._analyzers = {}
+
+        if selected_models is None:
+            selected_models = list(_registered_analyzers.keys())
 
         for model_name, model in _registered_analyzers.items():
             if model_name in selected_models:
@@ -421,7 +425,7 @@ class Analyzer:
 
                 self._analyzers[model_name] = model(**models_kwargs)
 
-    def __getitem__(self, item):
+    def __getitem__(self, item) -> AnalyzeModel:
         if item in self._analyzers:
             return self._analyzers[item]
         else:

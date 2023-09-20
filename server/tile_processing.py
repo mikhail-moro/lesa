@@ -3,7 +3,9 @@ import asyncio
 import aiohttp
 
 import numpy as np
+import shapely
 import tensorflow as tf
+from matplotlib import pyplot as plt
 
 from shapely import Polygon
 from PIL import Image
@@ -25,7 +27,7 @@ rescale = tf.keras.layers.Rescaling(1. / 255.)
 crop = tf.keras.layers.CenterCrop(TILE_SIZE - DECREASED_PADDING_SIZE * 2, TILE_SIZE - DECREASED_PADDING_SIZE * 2)
 
 
-def _uniq_coords(coords: list[dict]):
+def uniq_coords(coords: list[dict]):
     """
     Убирает дубликаты из списка координат
     """
@@ -38,7 +40,7 @@ def _uniq_coords(coords: list[dict]):
     return result
 
 
-def _check_coords(coords: list[dict]) -> tuple[int, int] | None:
+def check_coords(coords: list[dict]) -> tuple[int, int] | None:
     """
     Проверяет присланные web-клиентом координаты тайлов на корректность и возвращает высоту и ширину исследуемой области
 
@@ -62,17 +64,17 @@ def _check_coords(coords: list[dict]) -> tuple[int, int] | None:
     height = max(yy) - min(yy) + 1
 
     if len(coords) != width*height:
-        return None
+        raise ValueError("Client Error: неправильные координаты в запросе, попробуйте выделить область ещё раз")
 
     z = coords[0]['z']
     for coord in coords:
         if coord['z'] != z:
-            return None
+            raise ValueError("Client Error: неправильные координаты в запросе, попробуйте выделить область ещё раз")
 
     for y in yy:
         for x in xx:
             if {'x': x, 'y': y, 'z': z} not in coords:
-                return None
+                raise ValueError("Client Error: неправильные координаты в запросе, попробуйте выделить область ещё раз")
 
     return width, height
 
@@ -93,17 +95,7 @@ class TilesDownloader:
         async with aiohttp.ClientSession() as session:
             await asyncio.gather(*[self._http_worker(cords, session) for cords in tiles_coords])
 
-    def get_tiles(self, tiles_coords: list[dict]) -> (np.ndarray, int, int):
-        tiles_coords = _uniq_coords(tiles_coords)
-
-        coords_data = _check_coords(tiles_coords)
-
-        if coords_data is None:
-            raise ValueError("Client Error: неправильные координаты в запросе, попробуйте выделить область ещё раз")
-
-        width = coords_data[0]
-        height = coords_data[1]
-
+    def get_tiles(self, tiles_coords: list[dict]) -> np.ndarray:
         self._tiles_queue = {}
         retries = 0
 
@@ -121,7 +113,7 @@ class TilesDownloader:
 
                     self._tiles_queue = {}
 
-                    return np.array(tiles), width, height
+                    return np.array(tiles)
             except ConnectionError:
                 self._tiles_queue = {}
                 retries += 1
@@ -170,7 +162,8 @@ def preprocess_tiles(tiles_data: np.ndarray, width, height) -> tf.Tensor:
     # соседних тайлов
     empty_frame = np.zeros(((height * TILE_SIZE) + PADDING_SIZE * 2, (width * TILE_SIZE) + PADDING_SIZE * 2, 3))
     stacked_tiles = np.vstack(
-        [np.hstack([tiles_data[i * width + j] for j in np.arange(width)]) for i in np.arange(height)])
+        [np.hstack([tiles_data[i * width + j] for j in np.arange(width)]) for i in np.arange(height)]
+    )
 
     frame_height = stacked_tiles.shape[0]
     frame_width = stacked_tiles.shape[1]
@@ -202,6 +195,7 @@ def postprocess_tiles(
     )
     denoised_masks[denoised_masks < BIN_TRESHOLD] = 0.
     denoised_masks[denoised_masks >= BIN_TRESHOLD] = 1.
+
     contours = measure.find_contours(denoised_masks)
 
     analyze_area_polygon_dots = [tuple([i[1] for i in dot.items()]) for dot in analyze_area_polygon_dots]
@@ -220,7 +214,11 @@ def postprocess_tiles(
         contour[:, [0, 1]] = contour[:, [1, 0]]
 
         polygon = Polygon(contour)
-        polygon = polygon.simplify(tolerance=0.6)
+        polygon = polygon.simplify(tolerance=0.8)
+
+        # в некоторых случаях, из-за упрощения полигон может начать самопересекаться
+        if not polygon.is_valid:
+            polygon = polygon.buffer(0)
 
         if polygon.area > 0. and polygon.intersects(analyze_area_polygon):
             # чтобы полигон не выходил за выделенную пользователем область (описываемую полигоном analyze_area_polygon)
