@@ -16,171 +16,13 @@ if not SCRIPT_RUN_SEPARATE:
     from .utils import get_local_weights_path, get_remote_weights_path
 
 
-class EncoderBlock:
+class ConvBlock(tf.keras.layers.Layer):
     def __init__(
         self,
-        num_filters,
-        use_pooling=True,
-        dropout=0.1
-    ):
-        self.use_pooling = use_pooling
-
-        self.conv_1 = tf.keras.layers.Conv2D(
-            num_filters,
-            (3, 3),
-            kernel_initializer='he_normal',
-            padding='same',
-            use_bias=False
-        )
-        self.batch_norm_1 = tf.keras.layers.BatchNormalization()
-        self.activation_1 = tf.keras.layers.ReLU()
-
-        self.conv_2 = tf.keras.layers.Conv2D(
-            num_filters,
-            (3, 3),
-            kernel_initializer='he_normal',
-            padding='same',
-            use_bias=False
-        )
-        self.batch_norm_2 = tf.keras.layers.BatchNormalization()
-        self.activation_2 = tf.keras.layers.ReLU()
-
-        if use_pooling:
-            self.pooling = tf.keras.layers.MaxPooling2D((2, 2))
-
-        self.dropout = tf.keras.layers.Dropout(dropout)
-
-    def __call__(self, inputs):
-        conv = self.conv_1(inputs)
-        conv = self.batch_norm_1(conv)
-        conv = self.activation_1(conv)
-
-        conv = self.conv_2(conv)
-        conv = self.batch_norm_2(conv)
-        conv = self.activation_2(conv)
-
-        if self.use_pooling:
-            pool = self.pooling(conv)
-            pool = self.dropout(pool)
-        else:
-            pool = None
-
-        return conv, pool
-
-
-class DecoderBlock:
-    def __init__(
-        self,
-        num_filters,
-        concatenate_with=None,
-        dropout=0.1
-    ):
-        self.concatenate_with = concatenate_with if concatenate_with else []
-
-        self.conv_transpose = tf.keras.layers.Conv2DTranspose(
-            num_filters,
-            (3, 3),
-            padding='same',
-            strides=(2, 2),
-            kernel_initializer='he_normal',
-            use_bias=False
-        )
-        self.weights_concat = tf.keras.layers.Concatenate()
-        self.dropout = tf.keras.layers.Dropout(dropout)
-
-        self.conv_1 = tf.keras.layers.Conv2D(
-            num_filters,
-            (3, 3),
-            kernel_initializer='he_normal',
-            padding='same',
-            use_bias=False
-        )
-        self.batch_norm_1 = tf.keras.layers.BatchNormalization()
-        self.activation_1 = tf.keras.layers.ReLU()
-
-        self.conv_2 = tf.keras.layers.Conv2D(
-            num_filters,
-            (3, 3),
-            kernel_initializer='he_normal',
-            padding='same',
-            use_bias=False
-        )
-        self.batch_norm_2 = tf.keras.layers.BatchNormalization()
-        self.activation_2 = tf.keras.layers.ReLU()
-
-    def __call__(self, inputs):
-        unfl = self.conv_transpose(inputs)
-        unfl = self.weights_concat([unfl, *self.concatenate_with])
-        unfl = self.dropout(unfl)
-
-        conv = self.conv_1(unfl)
-        conv = self.batch_norm_1(conv)
-        conv = self.activation_1(conv)
-
-        conv = self.conv_2(conv)
-        conv = self.batch_norm_2(conv)
-        conv = self.activation_2(conv)
-
-        return conv
-
-
-class SingleDecoderBlock:
-    def __init__(
-        self,
-        num_filters,
-        concatenate_with=None,
-        dropout=0.1
-    ):
-        self.concatenate_with = concatenate_with if concatenate_with else []
-
-        self.conv_transpose = tf.keras.layers.Conv2DTranspose(
-            num_filters,
-            (3, 3),
-            padding='same',
-            strides=(2, 2),
-            kernel_initializer='he_normal',
-            use_bias=False
-        )
-        self.batch_norm_1 = tf.keras.layers.BatchNormalization()
-        self.activation_1 = tf.keras.layers.ReLU()
-
-        self.weights_concat = tf.keras.layers.Concatenate()
-
-        self.conv = tf.keras.layers.Conv2D(
-            num_filters,
-            (3, 3),
-            kernel_initializer='he_normal',
-            padding='same',
-            use_bias=False
-        )
-        self.batch_norm_2 = tf.keras.layers.BatchNormalization()
-        self.activation_2 = tf.keras.layers.ReLU()
-
-        self.dropout = tf.keras.layers.Dropout(dropout)
-
-    def __call__(self, inputs):
-        conv = self.conv_transpose(inputs)
-        conv = self.batch_norm_1(conv)
-        conv = self.activation_1(conv)
-
-        conv = self.weights_concat([conv, *self.concatenate_with])
-
-        conv = self.conv(conv)
-        conv = self.batch_norm_2(conv)
-        conv = self.activation_2(conv)
-
-        conv = self.dropout(conv)
-
-        return conv
-
-
-class DeepLabConvBlock(tf.keras.layers.Layer):
-    def __init__(
-            self,
-            num_filters=256,
-            kernel_size=3,
-            dilation_rate=1,
-            use_bias=False
+        num_filters: int = 256,
+        kernel_size: int | tuple[int, int] = 3,
+        dilation_rate: int = 1,
+        use_bias: bool = False
     ):
         super().__init__()
 
@@ -211,59 +53,81 @@ class DeepLabConvBlock(tf.keras.layers.Layer):
         return conv
 
 
-class DoubleDeepLabConvBlock(tf.keras.layers.Layer):
+class EncoderBlock:
     def __init__(
-            self,
-            num_filters=128,
-            kernel_size=3,
-            dilation_rate=1,
-            use_bias=False,
-            dropout=0.1
+        self,
+        num_filters,
+        use_pooling=True,
+        dropout=0.1
     ):
-        super().__init__()
+        self.use_pooling = use_pooling
 
-        self.num_filters = num_filters
-        self.kernel_size = kernel_size
-        self.dilation_rate = dilation_rate
-        self.use_bias = use_bias
-        self.dropout_value = dropout
+        self.conv_1 = ConvBlock(
+            num_filters=num_filters,
+            kernel_size=(3, 3),
+            use_bias=False
+        )
 
-    def build(self, input_shape):
-        self.conv_1 = tf.keras.layers.Conv2D(
-            self.num_filters,
-            kernel_size=self.kernel_size,
-            dilation_rate=self.dilation_rate,
-            use_bias=self.use_bias,
+        self.conv_2 = ConvBlock(
+            num_filters=num_filters,
+            kernel_size=(3, 3),
+            use_bias=False
+        )
+
+        if use_pooling:
+            self.pooling = tf.keras.layers.MaxPooling2D((2, 2))
+
+        self.dropout = tf.keras.layers.Dropout(dropout)
+
+    def __call__(self, inputs):
+        conv = self.conv_1(inputs)
+        conv = self.conv_2(conv)
+
+        if self.use_pooling:
+            pool = self.pooling(conv)
+            pool = self.dropout(pool)
+        else:
+            pool = None
+
+        return conv, pool
+
+
+class DecoderBlock:
+    def __init__(
+        self,
+        num_filters,
+        concatenate_with=None,
+        dropout=0.1
+    ):
+        self.concatenate_with = concatenate_with if concatenate_with else []
+
+        self.conv_transpose = tf.keras.layers.Conv2DTranspose(
+            num_filters,
+            (3, 3),
             padding='same',
-            kernel_initializer=tf.keras.initializers.HeNormal(),
+            strides=(2, 2),
+            kernel_initializer='he_normal',
+            use_bias=False
         )
         self.batch_norm_1 = tf.keras.layers.BatchNormalization()
         self.activation_1 = tf.keras.layers.ReLU()
 
-        self.conv_2 = tf.keras.layers.Conv2D(
-            self.num_filters,
-            kernel_size=self.kernel_size,
-            dilation_rate=self.dilation_rate,
-            use_bias=self.use_bias,
-            padding='same',
-            kernel_initializer=tf.keras.initializers.HeNormal(),
+        self.weights_concat = tf.keras.layers.Concatenate()
+
+        self.conv = ConvBlock(
+            num_filters=num_filters,
+            kernel_size=(3, 3),
+            use_bias=False
         )
-        self.batch_norm_2 = tf.keras.layers.BatchNormalization()
-        self.activation_2 = tf.keras.layers.ReLU()
 
-        self.dropout = tf.keras.layers.Dropout(self.dropout_value)
+        self.dropout = tf.keras.layers.Dropout(dropout)
 
-        super().build(input_shape)
-
-    def call(self, inputs, *args, **kwargs):
-        conv = self.conv_1(inputs)
+    def __call__(self, inputs):
+        conv = self.conv_transpose(inputs)
         conv = self.batch_norm_1(conv)
         conv = self.activation_1(conv)
-
-        conv = self.conv_2(conv)
-        conv = self.batch_norm_2(conv)
-        conv = self.activation_2(conv)
-
+        conv = self.weights_concat([conv, *self.concatenate_with])
+        conv = self.conv(conv)
         conv = self.dropout(conv)
 
         return conv
@@ -271,14 +135,6 @@ class DoubleDeepLabConvBlock(tf.keras.layers.Layer):
 
 class DSPP(tf.keras.layers.Layer):
     _not_build_up_sampling = True
-
-    def __init__(self, mode: str = 'original', **kwargs):
-        super().__init__(**kwargs)
-
-        if mode == "double":
-            self.conv_block = DoubleDeepLabConvBlock
-        else:
-            self.conv_block = DeepLabConvBlock
 
     def _build_up_sampling(self, conv):
         self.up_sampling = tf.keras.layers.UpSampling2D(
@@ -290,16 +146,16 @@ class DSPP(tf.keras.layers.Layer):
 
     def build(self, input_shape):
         self.av_pooling = tf.keras.layers.AveragePooling2D(pool_size=(input_shape[-3], input_shape[-2]))
-        self.start_conv = self.conv_block(kernel_size=1, use_bias=True)
+        self.start_conv = ConvBlock(kernel_size=1, use_bias=True)
         self.up_sampling = None  # будет инициализирован когда будет известен output_shape self.start_conv
 
-        self.conv_1 = self.conv_block(kernel_size=1, dilation_rate=1)
-        self.conv_6 = self.conv_block(kernel_size=3, dilation_rate=6)
-        self.conv_12 = self.conv_block(kernel_size=3, dilation_rate=12)
-        self.conv_18 = self.conv_block(kernel_size=3, dilation_rate=18)
+        self.conv_1 = ConvBlock(kernel_size=1, dilation_rate=1)
+        self.conv_6 = ConvBlock(kernel_size=3, dilation_rate=6)
+        self.conv_12 = ConvBlock(kernel_size=3, dilation_rate=12)
+        self.conv_18 = ConvBlock(kernel_size=3, dilation_rate=18)
 
         self.weights_concat = tf.keras.layers.Concatenate(axis=-1)
-        self.final_conv = self.conv_block(kernel_size=1)
+        self.final_conv = ConvBlock(kernel_size=1)
 
         super().build(input_shape)
 
@@ -471,27 +327,9 @@ class UnetPlusPlus(AnalyzeModel):
         return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='Unet_plus_plus')
 
 
-@AnalyzeModel.register_model('DeepLabV3+')
-class DeeplabV3plus(AnalyzeModel):
-    """
-    :param mode: режим сверстки:
-        'original' - стандартный сверточный блок Conv + BN + ReLU,
-        'double' - двойной сверточный блок [Conv + BN + ReLU]x2.
-        *В случае двойной сверстки используется такое же количество фильтров, просто они распределенны на 2 блока*
-    """
-    mode = None
-
-    def __init__(self, mode: Literal['original', 'double'] = 'original', *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.mode = mode
-
+@AnalyzeModel.register_model('ResNet-DeepLabV3+')
+class ResnetDeeplabV3plus(AnalyzeModel):
     def build_model(self, input_shape):
-        if self.mode == 'double':
-            conv_block = DoubleDeepLabConvBlock
-        else:
-            conv_block = DeepLabConvBlock
-
         model_input = tf.keras.layers.Input(input_shape)
 
         resnet50 = tf.keras.applications.ResNet50(
@@ -510,11 +348,11 @@ class DeeplabV3plus(AnalyzeModel):
         )(x)
 
         input_b = resnet50.get_layer("conv2_block3_2_relu").output
-        input_b = conv_block(num_filters=128, kernel_size=1)(input_b)
+        input_b = ConvBlock(num_filters=128, kernel_size=1)(input_b)
 
         x = tf.keras.layers.Concatenate(axis=-1)([input_a, input_b])
-        x = conv_block()(x)
-        x = conv_block()(x)
+        x = ConvBlock()(x)
+        x = ConvBlock()(x)
         x = tf.keras.layers.UpSampling2D(
             size=(input_shape[0] // x.shape[1], input_shape[1] // x.shape[2]),
             interpolation="bilinear"
@@ -523,40 +361,51 @@ class DeeplabV3plus(AnalyzeModel):
         model_output = tf.keras.layers.Conv2D(1, kernel_size=(1, 1), padding="same")(x)
         model_output = tf.keras.layers.Activation('sigmoid')(model_output)
 
-        return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='DeepLabV3_plus')
+        return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='ResNet50 DeepLabV3_plus')
 
 
-# @AnalyzeModel.register_model('ResNet U-net')
-class EfficientBackboneUnet(AnalyzeModel):
-    def build_model(self, input_shape) -> tf.keras.models.Model:
+#  @AnalyzeModel.register_model('EfficientNet-DeepLabV3+')
+class EffnetDeeplabV3plus(AnalyzeModel):
+    def build_model(self, input_shape):
         model_input = tf.keras.layers.Input(input_shape)
-        backbone = tf.keras.applications.efficientnet.EfficientNetB3(input_shape=input_shape, include_top=False, input_tensor=model_input)
 
-        features_layers = ['block2a_expand_activation', 'block3a_expand_activation', 'block4a_expand_activation', 'block6a_expand_activation']
+        resnet50 = tf.keras.applications.EfficientNetB3(
+            weights="imagenet",
+            include_top=False,
+            input_tensor=model_input,
+            input_shape=input_shape
+        )
 
-        conv_1 = backbone.get_layer(features_layers[0]).output  # 256x256 -> 128xx128
-        conv_2 = backbone.get_layer(features_layers[1]).output  # 128x128 -> 64x64
-        conv_3 = backbone.get_layer(features_layers[2]).output  # 64x64 -> 32x32
-        conv_4 = backbone.get_layer(features_layers[3]).output  # 32x32 -> 16x16
-        conv_5 = backbone.output  # 16x16 -> 8x8
+        x = resnet50.get_layer("block6a_expand_activation").output
+        x = DSPP()(x)
 
-        conv_6 = SingleDecoderBlock(256, concatenate_with=[conv_4])(conv_5)  # 8x8 -> 16x16
-        conv_7 = SingleDecoderBlock(128, concatenate_with=[conv_3])(conv_6)  # 16x16 -> 32x32
-        conv_8 = SingleDecoderBlock(64, concatenate_with=[conv_2])(conv_7)  # 32x32 -> 64x64
-        conv_9 = SingleDecoderBlock(32, concatenate_with=[conv_1])(conv_8)  # 64x64 -> 128x128
-        conv_10 = SingleDecoderBlock(16)(conv_9)  # 128x128 -> 256x256
+        input_a = tf.keras.layers.UpSampling2D(
+            size=(input_shape[0] // 4 // x.shape[1], input_shape[1] // 4 // x.shape[2]),
+            interpolation="bilinear"
+        )(x)
 
-        model_output = tf.keras.layers.Conv2D(1, (1, 1))(conv_10)
+        input_b = resnet50.get_layer("block3a_expand_activation").output
+        input_b = ConvBlock(num_filters=128, kernel_size=1)(input_b)
+
+        x = tf.keras.layers.Concatenate(axis=-1)([input_a, input_b])
+        x = ConvBlock()(x)
+        x = ConvBlock()(x)
+        x = tf.keras.layers.UpSampling2D(
+            size=(input_shape[0] // x.shape[1], input_shape[1] // x.shape[2]),
+            interpolation="bilinear"
+        )(x)
+
+        model_output = tf.keras.layers.Conv2D(1, kernel_size=(1, 1), padding="same")(x)
         model_output = tf.keras.layers.Activation('sigmoid')(model_output)
 
-        return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='Unet_orig_effnet')
+        return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='EfficientNetB3 DeepLabV3_plus')
 
 
 class Analyzer:
     """
     Класс реализующий инициализацию моделей для анализа картографических изображений и предоставляющий доступ к ним.
 
-    Доступ к моделям возможен с помощью индекс оператора через название модели: *analyzer = manager['model_name']*
+    Доступ к моделям возможен с помощью индекс оператора через название модели: *model = analyzer['model_name']*
 
     :param selected_models: инициализируемые модели
     :param analyzers_kwargs: параметры которые будут использованны при инициализации каждой модели, *подробнее смотреть в models.models.AnalyzeModel*
