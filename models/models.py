@@ -400,8 +400,8 @@ class EffnetDeeplabV3plus(AnalyzeModel):
         input_b = ConvBlock(num_filters=128, kernel_size=1)(input_b)
 
         x = tf.keras.layers.Concatenate(axis=-1)([input_a, input_b])
-        x = ConvBlock()(x)
-        x = ConvBlock()(x)
+        x = ConvBlock(dropout=0.1)(x)
+        x = ConvBlock(dropout=0.1)(x)
         x = tf.keras.layers.UpSampling2D(
             size=(input_shape[0] // x.shape[1], input_shape[1] // x.shape[2]),
             interpolation="bilinear"
