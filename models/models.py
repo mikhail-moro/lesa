@@ -22,13 +22,15 @@ class ConvBlock(tf.keras.layers.Layer):
         num_filters: int = 256,
         kernel_size: int | tuple[int, int] = 3,
         dilation_rate: int = 1,
-        use_bias: bool = False
+        dropout: float = .0,
+        use_bias: bool = False,
     ):
         super().__init__()
 
         self.num_filters = num_filters
         self.kernel_size = kernel_size
         self.dilation_rate = dilation_rate
+        self.dropout = dropout
         self.use_bias = use_bias
 
     def build(self, input_shape):
@@ -43,12 +45,21 @@ class ConvBlock(tf.keras.layers.Layer):
         self.batch_norm = tf.keras.layers.BatchNormalization()
         self.activation = tf.keras.layers.ReLU()
 
+        if self.dropout > 0.:
+            self.use_dropout = True
+            self.drop = tf.keras.layers.Dropout(self.dropout)
+        else:
+            self.use_dropout = False
+
         super().build(input_shape)
 
     def call(self, inputs, *args, **kwargs):
         conv = self.conv(inputs)
         conv = self.batch_norm(conv)
         conv = self.activation(conv)
+
+        if self.use_dropout:
+            conv = self.drop(conv)
 
         return conv
 
@@ -155,7 +166,7 @@ class DSPP(tf.keras.layers.Layer):
         self.conv_18 = ConvBlock(kernel_size=3, dilation_rate=18)
 
         self.weights_concat = tf.keras.layers.Concatenate(axis=-1)
-        self.final_conv = ConvBlock(kernel_size=1)
+        self.final_conv = ConvBlock(kernel_size=1, dropout=0.1)
 
         super().build(input_shape)
 
@@ -349,11 +360,11 @@ class ResnetDeeplabV3plus(AnalyzeModel):
         )(x)
 
         input_b = resnet50.get_layer("conv2_block3_2_relu").output
-        input_b = ConvBlock(num_filters=128, kernel_size=1)(input_b)
+        input_b = ConvBlock(num_filters=48, kernel_size=1)(input_b)
 
         x = tf.keras.layers.Concatenate(axis=-1)([input_a, input_b])
-        x = ConvBlock()(x)
-        x = ConvBlock()(x)
+        x = ConvBlock(dropout=0.1)(x)
+        x = ConvBlock(dropout=0.1)(x)
         x = tf.keras.layers.UpSampling2D(
             size=(input_shape[0] // x.shape[1], input_shape[1] // x.shape[2]),
             interpolation="bilinear"
