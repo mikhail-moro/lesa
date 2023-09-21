@@ -360,7 +360,7 @@ class ResnetDeeplabV3plus(AnalyzeModel):
         )(x)
 
         input_b = resnet50.get_layer("conv2_block3_2_relu").output
-        input_b = ConvBlock(num_filters=48, kernel_size=1)(input_b)
+        input_b = ConvBlock(num_filters=128, kernel_size=1)(input_b)
 
         x = tf.keras.layers.Concatenate(axis=-1)([input_a, input_b])
         x = ConvBlock(dropout=0.1)(x)
