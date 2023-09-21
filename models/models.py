@@ -338,8 +338,7 @@ class UnetPlusPlus(AnalyzeModel):
         return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='Unet_plus_plus')
 
 
-# Модель ещё не обучена
-# @AnalyzeModel.register_model('ResNet-DeepLabV3+')
+@AnalyzeModel.register_model('ResNet-DeepLabV3+')
 class ResnetDeeplabV3plus(AnalyzeModel):
     def build_model(self, input_shape):
         model_input = tf.keras.layers.Input(input_shape)
