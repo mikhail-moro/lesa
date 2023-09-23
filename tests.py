@@ -1,6 +1,12 @@
-import os
 import unittest
 import warnings
+import json
+import os
+
+import tensorflow as tf
+
+from backend.server import Server
+from backend.models import Analyzer
 
 
 TESTS_PATH = os.path.join(__file__)[:-9]  # убираем \tests.py
@@ -8,12 +14,6 @@ MOCK_DIR_PATH = os.path.join(TESTS_PATH, "tests_data", "mock_data")
 TEST_TILE_PATH = os.path.join(TESTS_PATH, "tests_data", "test_tile.jpg")
 TESTS_LOGS_PATH = os.path.join(TESTS_PATH, "tests_data", "tests_logs.txt")
 REQUESTS_DIR_PATH = os.path.join(TESTS_PATH, "tests_data", "json_requests")
-
-
-import json
-import tensorflow as tf
-from server import Server
-from models import Analyzer
 
 
 class AnalyzerMock(Analyzer):
@@ -39,8 +39,7 @@ class ServerTestCase(unittest.TestCase):
         app = Server(
             import_name=__name__,
             analyzer=analyzer,
-            logs_file_path=TESTS_LOGS_PATH,
-            tiles_download_max_replies=5
+            logs_file_path=TESTS_LOGS_PATH
         )
 
         # В ходе тестов по неизвестной причине могут возникать предупреждения ResourceWarning, на результаты тестов это

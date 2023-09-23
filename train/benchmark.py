@@ -9,7 +9,7 @@ import sys
 SCRIPT_RUN_SEPARATE = sys.path[0] == __file__[:-13]
 
 if not SCRIPT_RUN_SEPARATE:
-    from . import BENCHMARK_IMAGES_DIR_PATH, BENCHMARK_MASKS_DIR_PATH
+    from lesa.backend.models import BENCHMARK_IMAGES_DIR_PATH, BENCHMARK_MASKS_DIR_PATH
 
 
 layers = ["zoom_16", "zoom_17", "zoom_18"]

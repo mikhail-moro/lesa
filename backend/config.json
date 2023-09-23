@@ -1,0 +1,12 @@
+{
+    "local_weights": {
+        "weights_dir_path": "./local_weights"
+    },
+    "remote_weights": {
+        "weights_dir_id": "12yzyc54hrUGNYQLBVfejX38OdQBSnQLk",
+        "google_drive_credentials_path": "./google-api-credits.json"
+    },
+    "logs_path": "./logs.txt",
+    "models": ["U-Net"],
+    "weights_destination": "remote"
+}

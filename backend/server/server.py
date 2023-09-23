@@ -2,7 +2,7 @@ import typing
 import traceback
 
 if typing.TYPE_CHECKING:
-    from ..models import Analyzer
+    from lesa.backend.models import Analyzer
 
 from flask import Flask, render_template, request, jsonify
 from .tile_processing import preprocess_tiles, postprocess_tiles, uniq_coords, check_coords, TilesDownloader
@@ -23,13 +23,14 @@ class Server(Flask):
         *flask_args,
         analyzer: 'Analyzer',
         logs_file_path: str,
-        tiles_download_max_replies: int = 5,
         **flask_kwargs
     ):
+        print("Запуск сервера...")
+
         super().__init__(*flask_args, **flask_kwargs, static_folder=STATIC_DIR_PATH, template_folder=TEMPLATE_DIR_PATH)
 
         logger = Logger(logs_file_path)
-        downloader = TilesDownloader(tiles_download_max_replies)
+        downloader = TilesDownloader()
 
         @self.route('/')
         def main():

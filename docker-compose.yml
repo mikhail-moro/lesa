@@ -1,0 +1,15 @@
+version: '3'
+services:
+  flask:
+    build: ./backend
+    container_name: lesa
+    environment:
+      - CFG_PATH=./config.json
+      - FLASK_ENV=development
+      - PYTHONUNBUFFERED=True
+    restart: on-failure
+    volumes:
+      - ./backend:/backend
+    ports:
+      - "5000:5000"
+    command: gunicorn --bind 0.0.0.0:5000 main:app

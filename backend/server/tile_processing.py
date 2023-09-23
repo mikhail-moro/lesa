@@ -3,9 +3,7 @@ import asyncio
 import aiohttp
 
 import numpy as np
-import shapely
 import tensorflow as tf
-from matplotlib import pyplot as plt
 
 from shapely import Polygon
 from PIL import Image
@@ -16,7 +14,7 @@ from skimage import restoration, measure
 TILES_SERVER = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
 
 TILE_SIZE = 256  # Ширина и высота тайла
-PADDING_SIZE = 16  # Размер отступа при подаче для анализа
+PADDING_SIZE = 16  # Размер отступа при препроцессинге
 BIN_TRESHOLD = .5  # Порог используемый при бинаризации выхода модели (вектор двумерных тензоров значений от 0 до 1)
 
 MIN_POLYGON_AREA = (TILE_SIZE * 0.05) * (TILE_SIZE * 0.05)  # Минимальная площадь полигона (5% тайла - by default)
@@ -25,6 +23,40 @@ DECREASED_PADDING_SIZE = int(PADDING_SIZE * (TILE_SIZE / (TILE_SIZE + PADDING_SI
 resize = tf.keras.layers.Resizing(TILE_SIZE, TILE_SIZE)
 rescale = tf.keras.layers.Rescaling(1. / 255.)
 crop = tf.keras.layers.CenterCrop(TILE_SIZE - DECREASED_PADDING_SIZE * 2, TILE_SIZE - DECREASED_PADDING_SIZE * 2)
+
+
+# https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
+def _latlngs_to_pix_coords(lat: list, lng: list, start_tile_coords: dict):
+    lat = np.array(lat)
+    lng = np.array(lng)
+
+    lat_rad = np.radians(lat)
+    _2z = 2 ** start_tile_coords['z']
+
+    tile_x = (lng + 180.0) / 360.0 * _2z
+    tile_y = (1.0 - (np.log(np.tan(lat_rad) + (1 / np.cos(lat_rad)))) / np.pi) * (_2z / 2)  # 2^(z-1)
+
+    x = (tile_x - start_tile_coords['x']) * TILE_SIZE
+    y = (tile_y - start_tile_coords['y']) * TILE_SIZE
+
+    return np.dstack((x, y))[0]
+
+
+# https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
+def _pix_coords_to_latlngs(x: array.array, y: array.array, start_tile_coords: dict) -> np.ndarray:
+    x = np.array(x)
+    y = np.array(y)
+
+    x = x / TILE_SIZE + start_tile_coords['x']
+    y = y / TILE_SIZE + start_tile_coords['y']
+    _2z = 2 ** start_tile_coords['z']
+
+    n = np.pi - 2 * np.pi * y / _2z
+
+    lat = 180 / np.pi * np.arctan(0.5 * (np.exp(n) - np.exp(-n)))
+    lng = x / _2z * 360 - 180
+
+    return np.dstack((lat, lng))
 
 
 def uniq_coords(coords: list[dict]):
@@ -49,10 +81,7 @@ def check_coords(coords: list[dict]) -> tuple[int, int] | None:
         - координаты должны быть непрерывны
         - координаты должны соответствовать прямоугольной области
 
-    *Да, вставлять в одну функцию такой разный функционал неправильно, но в данной ситуации это позволяет делать меньше
-    вычислений*
-
-    :return: ширину и высоту исследуемой области в случае если координаты корректны, в противном случае - None
+    :return: ширину и высоту исследуемой области
     """
 
     # TODO ускорить numpy`ем
@@ -80,8 +109,10 @@ def check_coords(coords: list[dict]) -> tuple[int, int] | None:
 
 
 class TilesDownloader:
+    """
+    Класс для асинхронной загрузки тайлов
+    """
     _tiles_queue = {}
-    max_retries = None
 
     def __init__(self, max_retries: int = 5):
         self.max_retries = max_retries
@@ -123,43 +154,10 @@ class TilesDownloader:
         raise ConnectionError()
 
 
-# https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
-def _latlngs_to_pix_coords(lat: list, lng: list, start_tile_coords: dict):
-    lat = np.array(lat)
-    lng = np.array(lng)
-
-    lat_rad = np.radians(lat)
-    _2z = 2 ** start_tile_coords['z']
-
-    tile_x = (lng + 180.0) / 360.0 * _2z
-    tile_y = (1.0 - (np.log(np.tan(lat_rad) + (1 / np.cos(lat_rad)))) / np.pi) * (_2z / 2)  # 2^(z-1)
-
-    x = (tile_x - start_tile_coords['x']) * TILE_SIZE  # координаты тайлов в относительные пиксельные координаты
-    y = (tile_y - start_tile_coords['y']) * TILE_SIZE
-
-    return np.dstack((x, y))[0]
-
-
-# https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
-def _pix_coords_to_latlngs(x: array.array, y: array.array, start_tile_coords: dict) -> np.ndarray:
-    x = np.array(x)
-    y = np.array(y)
-
-    x = x / TILE_SIZE + start_tile_coords['x']
-    y = y / TILE_SIZE + start_tile_coords['y']
-    _2z = 2 ** start_tile_coords['z']
-
-    n = np.pi - 2 * np.pi * y / _2z
-
-    lat = 180 / np.pi * np.arctan(0.5 * (np.exp(n) - np.exp(-n)))
-    lng = x / _2z * 360 - 180
-
-    return np.dstack((lat, lng))
-
-
 def preprocess_tiles(tiles_data: np.ndarray, width, height) -> tf.Tensor:
-    # для того, чтобы модель лучше обрабатывала пиксели по краям тайлов, необходимо нарезать их с захватом контекста с
-    # соседних тайлов
+    """
+    Подготавливает загруженные файлы перед тем как подавать их на вход модели
+    """
     empty_frame = np.zeros(((height * TILE_SIZE) + PADDING_SIZE * 2, (width * TILE_SIZE) + PADDING_SIZE * 2, 3))
     stacked_tiles = np.vstack(
         [np.hstack([tiles_data[i * width + j] for j in np.arange(width)]) for i in np.arange(height)]
@@ -172,6 +170,8 @@ def preprocess_tiles(tiles_data: np.ndarray, width, height) -> tf.Tensor:
 
     tiles = []
 
+    # для того, чтобы модель лучше обрабатывала пиксели по краям тайлов, необходимо нарезать их с захватом контекста с
+    # соседних тайлов
     for y in np.arange(0, height * TILE_SIZE, TILE_SIZE):
         for x in np.arange(0, width * TILE_SIZE, TILE_SIZE):
             tiles.append(empty_frame[y:y + PADDING_SIZE * 2 + TILE_SIZE, x:x + PADDING_SIZE * 2 + TILE_SIZE])
@@ -180,12 +180,15 @@ def preprocess_tiles(tiles_data: np.ndarray, width, height) -> tf.Tensor:
 
 
 def postprocess_tiles(
-        out_batch: tf.Tensor,
-        width: int,
-        height: int,
-        start_tile_coords: dict,
-        analyze_area_polygon_dots: list[dict]
+    out_batch: tf.Tensor,
+    width: int,
+    height: int,
+    start_tile_coords: dict,
+    analyze_area_polygon_dots: list[dict]
 ) -> list:
+    """
+    Переводит выход модели из матриц распределения классов по пикселям в полигоны для отправки на клиент
+    """
     stacked_masks = np.vstack([np.hstack([out_batch[i * width + j] for j in np.arange(width)]) for i in np.arange(height)])
 
     denoised_masks = restoration.denoise_nl_means(
@@ -218,6 +221,8 @@ def postprocess_tiles(
 
         # в некоторых случаях, из-за упрощения полигон может начать самопересекаться
         if not polygon.is_valid:
+            # данный способ, в некоторых ситуациях может отсекать значительные части полигона
+            # TODO придумать что-то другое
             polygon = polygon.buffer(0)
 
         if polygon.area > 0. and polygon.intersects(analyze_area_polygon):
