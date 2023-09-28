@@ -4,41 +4,7 @@
     	<meta charset="utf-8">
     	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ==" crossorigin="" />
     	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/0.4.14/leaflet.draw.css"/>
-		<style type="text/css">
-			body {
-				margin: 0;
-				padding: 0;
-			}
-			#map {
-				width: 100vw;
-				height: 100vh;
-			}
-			#model-switch {
-				background-color: #fff;
-    			border: 1px solid #ccc;
-    			display: block;
-    			text-align: left;
-    			text-decoration: none;
-    			color: black;
-    			border-radius: 4px;
-			}
-			#radio-unet {
-				border-bottom: 1px solid #ccc;
-			}
-			#radio-deeplab-v3-plus {
-				border-top: 1px solid #ccc;
-			}
-   			.model-switch-block {
-      			display: block;
-				padding-top: 2px;
-				padding-bottom: 2px;
-				padding-left: 1px;
-				padding-right: 3px;
-   			}
-			.model-switch-block:hover {
-				background-color: #f4f4f4;
-			}
-    	</style>
+		<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
   	</head>
   	<body>
     	<div id="map"></div>

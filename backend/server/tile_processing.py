@@ -156,7 +156,7 @@ class TilesDownloader:
 
 def preprocess_tiles(tiles_data: np.ndarray, width, height) -> tf.Tensor:
     """
-    Подготавливает загруженные файлы перед тем как подавать их на вход модели
+    Подготавливает загруженные тайлы перед тем как подавать их на вход модели
     """
     empty_frame = np.zeros(((height * TILE_SIZE) + PADDING_SIZE * 2, (width * TILE_SIZE) + PADDING_SIZE * 2, 3))
     stacked_tiles = np.vstack(

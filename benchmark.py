@@ -1,15 +1,5 @@
 import os.path
 import tensorflow
-import sys
-
-
-# Данный скрипт может быть запущен как из файлов main.py и tests.py (стандартным способом), так и отдельно импортирован,
-# например для обучения в Google Colab, в таком случае использовать относительные импорты не получиться (как и
-# используемые с ними функции)
-SCRIPT_RUN_SEPARATE = sys.path[0] == __file__[:-13]
-
-if not SCRIPT_RUN_SEPARATE:
-    from lesa.backend.models import BENCHMARK_IMAGES_DIR_PATH, BENCHMARK_MASKS_DIR_PATH
 
 
 layers = ["zoom_16", "zoom_17", "zoom_18"]
@@ -36,19 +26,14 @@ class Benchmark:
         self,
         test_metrics: tensorflow.keras.metrics.Metric | list[tensorflow.keras.metrics.Metric] | tuple[tensorflow.keras.metrics.Metric] = tensorflow.metrics.BinaryIoU(),
         save_for_visualising: bool = False,
-        images_path: str = None,
-        masks_path: str = None
+        images_path: str = "benchmark_data/images",
+        masks_path: str = "benchmark_data/masks"
     ):
         """
         Класс позволяющий тестировать модель на заранее размеченных изображениях разного масштаба
         :param test_metrics: метрики тестов
         :param save_for_visualising: сохранять ли результаты тестов в виде изображений для последующей визуализации (их можно будет получить с помощью метода get_image_results)
         """
-        if not SCRIPT_RUN_SEPARATE:
-            if images_path is None or masks_path in None:
-                images_path = BENCHMARK_IMAGES_DIR_PATH
-                masks_path = BENCHMARK_MASKS_DIR_PATH
-
         if not isinstance(test_metrics, (tuple, list)):
             self.metrics = [test_metrics]
         else:

@@ -2,7 +2,7 @@ import typing
 import traceback
 
 if typing.TYPE_CHECKING:
-    from lesa.backend.models import Analyzer
+    from ..models import Analyzer
 
 from flask import Flask, render_template, request, jsonify
 from .tile_processing import preprocess_tiles, postprocess_tiles, uniq_coords, check_coords, TilesDownloader

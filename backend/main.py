@@ -15,7 +15,10 @@ MAIN_PATH = __file__[:-8]  # убираем \main.py
 
 
 def create_flask_app() -> 'Flask':
-    config_path = os.environ["CFG_PATH"]
+    if "CFG_PATH" in os.environ:
+        config_path = os.environ["CFG_PATH"]
+    else:
+        config_path = "./config.json"
 
     with open(os.path.join(MAIN_PATH, config_path), 'r') as cfg_file:
         config = json.load(cfg_file)

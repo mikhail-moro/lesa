@@ -10,8 +10,6 @@ from .layers import DSPP, DecoderBlock, EncoderBlock, ConvBlock
 
 INPUT_SHAPE = (256, 256, 3)
 
-_registered_analyzers: dict[str, 'AnalyzeModel'] = {}
-
 
 def register_model(model_client_name: str):
     """
@@ -21,8 +19,9 @@ def register_model(model_client_name: str):
     в меню выбора модели для анализа)
     """
     def _registration(target):
-        target.client_name = model_client_name
-        _registered_analyzers[model_client_name] = target
+        target._client_name = model_client_name
+        target._registered = True
+
         return target
 
     return _registration
@@ -38,22 +37,23 @@ class AnalyzeModel(abc.ABC):
     - from_local_weights: загрузка весов из локального .h5 файла
     - from_remote_weights: загрузка весов из удаленного файла с помощью Google Drive Api
     """
-    tf_model: tf.keras.models.Model = None
-    client_name: str = None
+    _tf_model: tf.keras.models.Model = None
+    _client_name: str = None
+    _registered: bool = False
 
     @abc.abstractmethod
     def build_model(self) -> tf.keras.models.Model:
         """
         Метод инициализирующий модель, должен возвращять экземпляр класса tf.keras.models.Model
 
-        Важно: *при автоматических загрузке и сохранении весов учитывается не поле client_name, а tf_model.name которое
+        Важно: *при автоматических загрузке и сохранении весов учитывается не поле _client_name, а _tf_model.name которое
         задается при инициализации tf.keras.models.Model(args, kwargs, name=your_model_name), поэтому этот параметр
         должен быть задан.*
         """
         raise NotImplementedError()
 
     def __init__(self):
-        self.tf_model = self.build_model()
+        self._tf_model = self.build_model()
 
     @classmethod
     def from_local_weights(
@@ -68,11 +68,11 @@ class AnalyzeModel(abc.ABC):
         obj = cls()
 
         if weights_file == 'auto':
-            weights_path = get_local_weights_path(obj.tf_model.name, weights_dir_path)
+            weights_path = get_local_weights_path(obj._tf_model.name, weights_dir_path)
         else:
             weights_path = os.path.join(weights_dir_path, weights_file)
 
-        obj.tf_model.load_weights(weights_path)
+        obj._tf_model.load_weights(weights_path)
 
         return obj
 
@@ -91,20 +91,20 @@ class AnalyzeModel(abc.ABC):
         obj = cls()
 
         if weights_file == 'auto':
-            weights_path = get_remote_weights_path(obj.tf_model.name, weights_dir_id, google_drive_credentials_path)
+            weights_path = get_remote_weights_path(obj._tf_model.name, weights_dir_id, google_drive_credentials_path)
         else:
             weights_path = get_remote_weights_path(weights_file, weights_dir_id, google_drive_credentials_path)
 
-        obj.tf_model.load_weights(weights_path)
+        obj._tf_model.load_weights(weights_path)
         os.remove(weights_path)  # удаляем временный файл весов после загрузки
 
         return obj
 
     def __call__(self, input_tensor: tf.Tensor) -> tf.Tensor:
-        return self.tf_model.predict(input_tensor, verbose=None)
+        return self._tf_model.predict(input_tensor, verbose=None)
 
     def get_tf_model(self) -> tf.keras.models.Model:
-        return self.tf_model
+        return self._tf_model
 
 
 @register_model('U-Net')
@@ -243,9 +243,10 @@ class Analyzer:
     Доступ к моделям возможен с помощью индекс оператора через название модели: *model = analyzer['model_name']*
 
     :param selected_models: список моделей которые будут инициализированны, None - использовать все доступные модели
-    :param analyzers_kwargs: параметры которые будут использованны при инициализации каждой модели, *подробнее смотреть в models.models.AnalyzeModel*
+    :param weights_destination: расположение файлов с весами: 'local' - локальная директория, 'remote' - удаленная GoogleDrive директория, None - не загружать веса
+    :param models_kwargs: параметры которые будут использованны при инициализации каждой модели, *подробнее смотреть в models.models.AnalyzeModel*
     """
-    _analyzers = None
+    _analyzers: dict[str, 'AnalyzeModel'] = {}
 
     def __init__(
         self,
@@ -253,13 +254,15 @@ class Analyzer:
         weights_destination: typing.Literal['local', 'remote'] = None,
         **models_kwargs
     ):
-        self._analyzers = {}
+        models = AnalyzeModel.__subclasses__()
 
         if selected_models is None:
-            selected_models = list(_registered_analyzers.keys())
+            selected_models = models
 
-        for model_name, model in _registered_analyzers.items():
-            if model_name in selected_models:
+        for model in models:
+            model_name = model._client_name
+
+            if model._registered and model_name in selected_models:
                 print(f"Инициализация {model_name}...")
 
                 if weights_destination == 'local':
