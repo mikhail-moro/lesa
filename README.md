@@ -54,20 +54,20 @@ https://drive.google.com/file/d/1nDDueI9eiSFpFzIJgmX8TeIPcJiD9mwH/view?pli=1
 {
     *Важно: не используйте абсолютные пути, все пути должны быть относительны директории /backend*
 
+                                         Основные настройки
+    "logs_path":                         - путь до .txt файла где будут записываться логи сервера 
+    "models":                            - список моделей для анализа снимков со спутников которые будут использованны, на данный момент доступны "U-Net", "Unet++", "ResNet-DeepLabV3+" и "EfficientNet-DeepLabV3+"
+    "weights_destination":               - расположение .h5 файлов с обученными весами для моделей: 'local' - искать веса в локальной директории, 'remote' - брать веса из удаленной Google Drive директории
 
-    "logs_path": "./logs.txt",       - путь до .txt файла где будут записываться логи сервера 
-    "models": ["U-Net"],             - список моделей для анализа снимков со спутников которые будут использованны, на данный момент доступны "U-Net", "Unet++", "ResNet-DeepLabV3+" и "EfficientNet-DeepLabV3+"
-    "weights_destination": "remote", - расположение .h5 файлов с обученными весами для моделей: 'local' - искать веса в локальной директории, 'remote' - брать веса из удаленной Google Drive директории
 
-
-    "local_weights": {                        - настройки которые будут применены при выборе локальной загрузки весов
-        "weights_dir_path": "./local_weights" - путь до локальной директории с .h5 файлами весов
+    "local_weights": {                   Настройки которые будут применены при выборе локальной загрузки весов
+        "weights_dir_path":              - путь до локальной директории с .h5 файлами весов
     },
 
 
-    "remote_weights": {                                              - настройки которые будут применены при выборе удаленной загрузки весов
-        "weights_dir_id": "12yzyc54hrUGNYQLBVfejX38OdQBSnQLk",       - id удаленной Google Drive директории с .h5 файлами весов
-        "google_drive_credentials_path": "./google-api-credits.json" - путь до файла с Google Drive credentials с api key для доступа к вышеописанной удаленной директории
+    "remote_weights": {                  Настройки которые будут применены при выборе удаленной загрузки весов
+        "weights_dir_id":                - id удаленной Google Drive директории с .h5 файлами весов
+        "google_drive_credentials_path": - путь до файла с Google Drive credentials с api key для доступа к вышеописанной удаленной директории
     }
 }
 ```
