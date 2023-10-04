@@ -4,7 +4,7 @@
 https://drive.google.com/file/d/1nDDueI9eiSFpFzIJgmX8TeIPcJiD9mwH/view?pli=1
 
 
-### Дорожная карта:
+## Дорожная карта:
 
   - :white_check_mark: Минимально работающий Web-клиент для интерактивного анализа
 
@@ -19,14 +19,12 @@ https://drive.google.com/file/d/1nDDueI9eiSFpFzIJgmX8TeIPcJiD9mwH/view?pli=1
   
   - :x: Отчет с аналитикой
 
-### Реализованные архитектуры
+## Реализованные архитектуры
 - U-Net<sup>[[1]](https://arxiv.org/abs/1505.04597)</sup> - доступно в Web-клиенте
 - UNet++<sup>[[2]](https://arxiv.org/abs/1807.10165)</sup> - доступно в Web-клиенте
 - DeepLabV3+<sup>[[3]](https://arxiv.org/abs/1802.02611)</sup>:
-  - версия с EfficientNetB3 енкодером - доступно в Web-клиенте
-  - версия с ResNet50 енкодером - дорабатывается, пока не доступно в Web-клиенте
-
-Все модели обучались на следующем датасете: https://www.kaggle.com/datasets/quadeer15sh/augmented-forest-segmentation
+  - версия с EfficientNetB2 енкодером - доступно в Web-клиенте
+  - версия с ResNet50 енкодером - доступно в Web-клиенте
  
 На рис. 1 показано сравнение метрики Intersection-Over-Union вывода моделей и размеченных вручную масок (данные для сравнения расположенны в models
 /benchmark_data). Как видно, на данный момент, самые лучшие результаты показала архитектура DeepLabv3+** на уровне приближения 17 (модели анализируют изображения только с последних 3-х самых близких уровней приближения - 16, 17, 18). Однако, размеченных данных крайне мало, поэтому результаты нельзя назвать точными.
@@ -38,17 +36,13 @@ https://drive.google.com/file/d/1nDDueI9eiSFpFzIJgmX8TeIPcJiD9mwH/view?pli=1
 <p align="center"><img src="https://github.com/mikhail-moro/res/blob/main/sample_1.png"><br>Рис. 2</p>
 <p align="center"><img src="https://github.com/mikhail-moro/res/blob/main/sample_2.png"><br>Рис. 3</p>
 
------
-** Использовалась версия DeepLabV3+ с ResNet50 енкодером
- 
-1. https://arxiv.org/abs/1505.04597
-2. https://arxiv.org/abs/1807.10165
-3. https://arxiv.org/abs/1802.02611
+## Данные
+Для обучения моделей был использован датасет аэрофотоснимков LandCover.ai-v1<sup>[[4]](https://landcover.ai.linuxpolska.com)[[5]](https://arxiv.org/abs/2005.02264v1)</sup>. Так как данный датасет содержит более одного размеченного класса, то для обучения была выбранна подвыборка примеров содержащих достаточную концентрацию класса Woodland, а также класса Building, так как, в данном случае необходимо обучить модели сегментировать растительность в городской среде. Затем, из полученной подвыборки были убраны остальные метки классов кроме Woodland. 
 
-### Демонстрация работы сервиса (ссылка на YouTube-видео)
+## Демонстрация работы сервиса (ссылка на YouTube-видео)
 [![Демонстрация работы](https://img.youtube.com/vi/okUjgAhp0fM/maxresdefault.jpg)](https://www.youtube.com/watch?v=okUjgAhp0fM)
 
-### Запуск сервера
+## Запуск сервера
 При запуске скрипт будет по умолчанию использовать настройки из файла `backend\config.json`(путь до файла можно изменить в системной переменной 'CFG-PATH'). Данный файл имеет следующую стркутуру:
 ```
 {
@@ -72,9 +66,7 @@ https://drive.google.com/file/d/1nDDueI9eiSFpFzIJgmX8TeIPcJiD9mwH/view?pli=1
 }
 ```
 
-### TODO
-  - доработать unit-тесты
-  - исправить баг web-клиента, когда выделенная область не анализируется если находится, хотя бы частично, вне экрана
-  - исправить ещё кучу багов клиента
-  - добавить размеченных примеров для сравнения моделей
-  - ...
+----
+1. https://arxiv.org/abs/1505.04597
+2. https://arxiv.org/abs/1807.10165
+3. https://arxiv.org/abs/1802.02611
