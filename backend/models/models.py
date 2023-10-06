@@ -254,7 +254,7 @@ class Analyzer:
         weights_destination: typing.Literal['local', 'remote'] = None,
         **models_kwargs
     ):
-        all_models = [model for model in AnalyzeModel.__subclasses__() if model._registered and model._client_name]
+        all_models = self.get_registered_models_names()
 
         if selected_models is None:
             selected_models = all_models
@@ -262,6 +262,8 @@ class Analyzer:
             selected_models = [sel_model for sel_model in selected_models if sel_model in all_models]
 
         for model in selected_models:
+            model = [i for i in AnalyzeModel.__subclasses__() if i._client_name == model][0]
+
             print(f"Инициализация {model._client_name}...")
 
             if weights_destination == 'local':
