@@ -1,5 +1,7 @@
 import array
 import asyncio
+import typing
+
 import aiohttp
 
 import numpy as np
@@ -57,6 +59,13 @@ def _pix_coords_to_latlngs(x: array.array, y: array.array, start_tile_coords: di
     lng = x / _2z * 360 - 180
 
     return np.dstack((lat, lng))
+
+
+def _stack(images: np.ndarray | tf.Tensor, width: int, height: int):
+    """
+    Сшивает входной массив изображений в одно
+    """
+    return np.vstack([np.hstack([images[i * width + j] for j in np.arange(width)]) for i in np.arange(height)])
 
 
 def uniq_coords(coords: list[dict]):
@@ -158,25 +167,22 @@ def preprocess_tiles(tiles_data: np.ndarray, width, height) -> tf.Tensor:
     """
     Подготавливает загруженные тайлы перед тем как подавать их на вход модели
     """
-    empty_frame = np.zeros(((height * TILE_SIZE) + PADDING_SIZE * 2, (width * TILE_SIZE) + PADDING_SIZE * 2, 3))
-    stacked_tiles = np.vstack(
-        [np.hstack([tiles_data[i * width + j] for j in np.arange(width)]) for i in np.arange(height)]
-    )
-
-    frame_height = stacked_tiles.shape[0]
-    frame_width = stacked_tiles.shape[1]
-
-    empty_frame[PADDING_SIZE:frame_height + PADDING_SIZE, PADDING_SIZE:frame_width + PADDING_SIZE] = stacked_tiles
+    stacked_tiles = _stack(tiles_data, width, height)
+    padded_tiles = np.pad(stacked_tiles, ((PADDING_SIZE, PADDING_SIZE), (PADDING_SIZE, PADDING_SIZE), (0, 0)), 'symmetric')
 
     tiles = []
 
     # для того, чтобы модель лучше обрабатывала пиксели по краям тайлов, необходимо нарезать их с захватом контекста с
     # соседних тайлов
+
     for y in np.arange(0, height * TILE_SIZE, TILE_SIZE):
         for x in np.arange(0, width * TILE_SIZE, TILE_SIZE):
-            tiles.append(empty_frame[y:y + PADDING_SIZE * 2 + TILE_SIZE, x:x + PADDING_SIZE * 2 + TILE_SIZE])
+            tile = padded_tiles[y:y + PADDING_SIZE * 2 + TILE_SIZE, x:x + PADDING_SIZE * 2 + TILE_SIZE]
+            tile = rescale(tile)
+            tile = resize(tile)
+            tiles.append(tile)
 
-    return tf.convert_to_tensor([resize(rescale(i)) for i in tiles])
+    return tf.convert_to_tensor(tiles)
 
 
 def postprocess_tiles(
@@ -189,13 +195,17 @@ def postprocess_tiles(
     """
     Переводит выход модели из матриц распределения классов по пикселям в полигоны для отправки на клиент
     """
-    stacked_masks = np.vstack([np.hstack([out_batch[i * width + j] for j in np.arange(width)]) for i in np.arange(height)])
+    # так как, во время препроцессинга тайлы нарезались с захватом контекста теперь нужно отрезать лишние данные
+    out_batch = [resize(crop(i)) for i in out_batch]
+    stacked_masks = _stack(out_batch, width, height)
 
     denoised_masks = restoration.denoise_nl_means(
         stacked_masks.reshape((stacked_masks.shape[0], stacked_masks.shape[1])),
         patch_size=8,
         patch_distance=16
     )
+
+    # TODO поменять метод бинаризации
     denoised_masks[denoised_masks < BIN_TRESHOLD] = 0.
     denoised_masks[denoised_masks >= BIN_TRESHOLD] = 1.
 
