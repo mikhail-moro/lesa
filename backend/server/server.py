@@ -34,7 +34,7 @@ class Server(Flask):
 
         @self.route('/')
         def main():
-            return render_template('index.html', models=analyzer.get_models_names())
+            return render_template('index.html', models=analyzer.get_init_models_names())
 
         @self.route('/analyze', methods=['POST'])
         def analyze():

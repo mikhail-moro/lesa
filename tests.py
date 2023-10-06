@@ -9,7 +9,7 @@ from backend.server import Server
 from backend.models import Analyzer
 
 
-TESTS_PATH = os.path.join(__file__)[:-9]  # убираем \tests.py
+TESTS_PATH = __file__[:-9]  # убираем \tests.py
 MOCK_DIR_PATH = os.path.join(TESTS_PATH, "tests_data", "mock_data")
 TEST_TILE_PATH = os.path.join(TESTS_PATH, "tests_data", "test_tile.jpg")
 TESTS_LOGS_PATH = os.path.join(TESTS_PATH, "tests_data", "tests_logs.txt")
@@ -99,21 +99,24 @@ class ModelsTestCase(unittest.TestCase):
 
     def test_unet(self):
         model = self.analyzer['U-Net']
-
         out_tensor = model(self.input_tensor)
 
         self.assertEqual(tuple(out_tensor.shape), (1, 256, 256, 1))
 
     def test_unet_plus_plus(self):
         model = self.analyzer['Unet++']
+        out_tensor = model(self.input_tensor)
 
+        self.assertEqual(tuple(out_tensor.shape), (1, 256, 256, 1))
+
+    def test_resnet_deeplab_v3_plus(self):
+        model = self.analyzer['ResNet-DeepLabV3+']
         out_tensor = model(self.input_tensor)
 
         self.assertEqual(tuple(out_tensor.shape), (1, 256, 256, 1))
 
     def test_effnet_deeplab_v3_plus(self):
         model = self.analyzer['EfficientNet-DeepLabV3+']
-
         out_tensor = model(self.input_tensor)
 
         self.assertEqual(tuple(out_tensor.shape), (1, 256, 256, 1))

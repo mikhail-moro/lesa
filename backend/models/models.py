@@ -186,8 +186,8 @@ class ResnetDeeplabV3plus(AnalyzeModel):
         input_b = ConvBlock(num_filters=128, kernel_size=1)(input_b)
 
         x = tf.keras.layers.Concatenate(axis=-1)([input_a, input_b])
-        x = ConvBlock(dropout=0.1)(x)
-        x = ConvBlock(dropout=0.1)(x)
+        x = ConvBlock()(x)
+        x = ConvBlock()(x)
         x = tf.keras.layers.UpSampling2D(
             size=(INPUT_SHAPE[0] // x.shape[1], INPUT_SHAPE[1] // x.shape[2]),
             interpolation="bilinear"
@@ -204,14 +204,14 @@ class EffnetDeeplabV3plus(AnalyzeModel):
     def build_model(self):
         model_input = tf.keras.layers.Input(INPUT_SHAPE)
 
-        effnet_b3 = tf.keras.applications.EfficientNetB3(
+        effnet_v2s = tf.keras.applications.EfficientNetV2S(
             weights="imagenet",
             include_top=False,
             input_tensor=model_input,
             input_shape=INPUT_SHAPE
         )
 
-        x = effnet_b3.get_layer("block6a_expand_activation").output
+        x = effnet_v2s.get_layer("block6a_expand_activation").output
         x = DSPP()(x)
 
         input_a = tf.keras.layers.UpSampling2D(
@@ -219,12 +219,12 @@ class EffnetDeeplabV3plus(AnalyzeModel):
             interpolation="bilinear"
         )(x)
 
-        input_b = effnet_b3.get_layer("block3a_expand_activation").output
+        input_b = effnet_v2s.get_layer("block2b_expand_activation").output
         input_b = ConvBlock(num_filters=128, kernel_size=1)(input_b)
 
         x = tf.keras.layers.Concatenate(axis=-1)([input_a, input_b])
-        x = ConvBlock(dropout=0.1)(x)
-        x = ConvBlock(dropout=0.1)(x)
+        x = ConvBlock()(x)
+        x = ConvBlock()(x)
         x = tf.keras.layers.UpSampling2D(
             size=(INPUT_SHAPE[0] // x.shape[1], INPUT_SHAPE[1] // x.shape[2]),
             interpolation="bilinear"
@@ -233,7 +233,7 @@ class EffnetDeeplabV3plus(AnalyzeModel):
         model_output = tf.keras.layers.Conv2D(1, kernel_size=(1, 1), padding="same")(x)
         model_output = tf.keras.layers.Activation('sigmoid')(model_output)
 
-        return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='EfficientNetB3_DeepLabV3_plus')
+        return tf.keras.models.Model(inputs=[model_input], outputs=[model_output], name='EfficientNetV2S_DeepLabV3_plus')
 
 
 class Analyzer:
@@ -254,23 +254,22 @@ class Analyzer:
         weights_destination: typing.Literal['local', 'remote'] = None,
         **models_kwargs
     ):
-        models = AnalyzeModel.__subclasses__()
+        all_models = [model for model in AnalyzeModel.__subclasses__() if model._registered and model._client_name]
 
         if selected_models is None:
-            selected_models = models
+            selected_models = all_models
+        else:
+            selected_models = [sel_model for sel_model in selected_models if sel_model in all_models]
 
-        for model in models:
-            model_name = model._client_name
+        for model in selected_models:
+            print(f"Инициализация {model._client_name}...")
 
-            if model._registered and model_name in selected_models:
-                print(f"Инициализация {model_name}...")
-
-                if weights_destination == 'local':
-                    self._analyzers[model_name] = model.from_local_weights(**models_kwargs)
-                elif weights_destination == 'remote':
-                    self._analyzers[model_name] = model.from_remote_weights(**models_kwargs)
-                else:
-                    self._analyzers[model_name] = model()
+            if weights_destination == 'local':
+                self._analyzers[model._client_name] = model.from_local_weights(**models_kwargs)
+            elif weights_destination == 'remote':
+                self._analyzers[model._client_name] = model.from_remote_weights(**models_kwargs)
+            else:
+                self._analyzers[model._client_name] = model()
 
     def __getitem__(self, item) -> AnalyzeModel:
         if item in self._analyzers:
@@ -278,5 +277,15 @@ class Analyzer:
         else:
             raise ValueError("Client Error: данная модель недоступна")
 
-    def get_models_names(self):
+    @staticmethod
+    def get_registered_models_names():
+        """
+        Возвращает названия всех моделей к которым был применен декоратор register_model
+        """
+        return [model._client_name for model in AnalyzeModel.__subclasses__() if model._registered and model._client_name]
+
+    def get_availible_models_names(self):
+        """
+        Возвращает названия всех моделей доступных для данного экземпляра класса
+        """
         return list(self._analyzers.keys())

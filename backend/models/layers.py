@@ -7,7 +7,7 @@ class ConvBlock(tf.keras.layers.Layer):
         num_filters: int = 256,
         kernel_size: int | tuple[int, int] = 3,
         dilation_rate: int = 1,
-        dropout: float = .0,
+        dropout: float = 0.05,
         use_bias: bool = False,
     ):
         super().__init__()
@@ -54,26 +54,26 @@ class EncoderBlock:
         self,
         num_filters,
         use_pooling=True,
-        dropout=0.1
+        dropout=0.05
     ):
         self.use_pooling = use_pooling
 
         self.conv_1 = ConvBlock(
             num_filters=num_filters,
             kernel_size=(3, 3),
-            use_bias=False
+            use_bias=False,
+            dropout=dropout
         )
 
         self.conv_2 = ConvBlock(
             num_filters=num_filters,
             kernel_size=(3, 3),
-            use_bias=False
+            use_bias=False,
+            dropout=dropout
         )
 
         if use_pooling:
             self.pooling = tf.keras.layers.MaxPooling2D((2, 2))
-
-        self.dropout = tf.keras.layers.Dropout(dropout)
 
     def __call__(self, inputs):
         conv = self.conv_1(inputs)
@@ -81,7 +81,6 @@ class EncoderBlock:
 
         if self.use_pooling:
             pool = self.pooling(conv)
-            pool = self.dropout(pool)
         else:
             pool = None
 
@@ -93,7 +92,7 @@ class DecoderBlock:
         self,
         num_filters,
         concatenate_with=None,
-        dropout=0.1
+        dropout=0.05
     ):
         self.concatenate_with = concatenate_with if concatenate_with else []
 
@@ -108,42 +107,45 @@ class DecoderBlock:
         self.batch_norm_1 = tf.keras.layers.BatchNormalization()
         self.activation_1 = tf.keras.layers.ReLU()
 
+        if dropout > 0.:
+            self.use_dropout = True
+            self.dropout = tf.keras.layers.Dropout(dropout)
+        else:
+            self.use_dropout = False
+
         self.weights_concat = tf.keras.layers.Concatenate()
 
         self.conv = ConvBlock(
             num_filters=num_filters,
             kernel_size=(3, 3),
-            use_bias=False
+            use_bias=False,
+            dropout=dropout
         )
-
-        self.dropout = tf.keras.layers.Dropout(dropout)
 
     def __call__(self, inputs):
         conv = self.conv_transpose(inputs)
         conv = self.batch_norm_1(conv)
         conv = self.activation_1(conv)
+
+        if self.use_dropout:
+            conv = self.dropout(conv)
+
         conv = self.weights_concat([conv, *self.concatenate_with])
         conv = self.conv(conv)
-        conv = self.dropout(conv)
 
         return conv
 
 
 class DSPP(tf.keras.layers.Layer):
-    _not_build_up_sampling = True
+    def build(self, input_shape):
+        self.av_pooling = tf.keras.layers.AveragePooling2D(pool_size=(input_shape[1], input_shape[2]))
+        pool_out_shape = self.av_pooling.compute_output_shape(input_shape)
 
-    def _build_up_sampling(self, conv):
+        self.conv = ConvBlock(kernel_size=1, use_bias=True)
         self.up_sampling = tf.keras.layers.UpSampling2D(
-            size=(self._build_input_shape[-3] // conv.shape[1], self._build_input_shape[-2] // conv.shape[2]),
+            size=(input_shape[1] // pool_out_shape[1], input_shape[2] // pool_out_shape[2]),
             interpolation="bilinear"
         )
-
-        self._not_build_up_sampling = False
-
-    def build(self, input_shape):
-        self.av_pooling = tf.keras.layers.AveragePooling2D(pool_size=(input_shape[-3], input_shape[-2]))
-        self.start_conv = ConvBlock(kernel_size=1, use_bias=True)
-        self.up_sampling = None  # будет инициализирован когда будет известен output_shape self.start_conv
 
         self.conv_1 = ConvBlock(kernel_size=1, dilation_rate=1)
         self.conv_6 = ConvBlock(kernel_size=3, dilation_rate=6)
@@ -151,16 +153,13 @@ class DSPP(tf.keras.layers.Layer):
         self.conv_18 = ConvBlock(kernel_size=3, dilation_rate=18)
 
         self.weights_concat = tf.keras.layers.Concatenate(axis=-1)
-        self.final_conv = ConvBlock(kernel_size=1, dropout=0.1)
+        self.final_conv = ConvBlock(kernel_size=1)
 
         super().build(input_shape)
 
     def call(self, inputs, *args, **kwargs):
         x = self.av_pooling(inputs)
-        x = self.start_conv(x)
-
-        if self._not_build_up_sampling:
-            self._build_up_sampling(x)
+        x = self.conv(x)
 
         out_pool = self.up_sampling(x)
 

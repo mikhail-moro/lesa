@@ -63,4 +63,3 @@ app = create_flask_app()
 
 if __name__ == "__main__":
     app.run("0.0.0.0", 5000)
-    # "models": ["U-Net", "Unet++", "ResNet-DeepLabV3+", "EfficientNet-DeepLabV3+"],
